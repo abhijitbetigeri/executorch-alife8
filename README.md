@@ -1,6 +1,7 @@
 # Alif Semiconductor ML Embedded Evaluation Kit Examples
 
 For this DevKit-E8 camera and face-detection firmware, see [build and flash instructions](docs/alif-e8-camera.md).
+The same app also builds with ExecuTorch and a BlazeFace detector running entirely on the Ethos-U85; see [BlazeFace on ExecuTorch](docs/blazeface-executorch.md).
 
 Built on the Arm ML Embedded Evaluation Kit, this repository provides a collection of ML models that can be compiled and run on Alif development boards.
 

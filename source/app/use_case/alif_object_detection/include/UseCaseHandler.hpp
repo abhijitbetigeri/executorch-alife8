@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (c) 2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2022, 2026 Arm Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,12 +30,25 @@
 #define ALIF_OBJ_DET_HANDLER_HPP
 
 #include "AppContext.hpp"
+
+#if defined(MLEK_FWK_EXECUTORCH)
+#include "mlek/fwk/executorch/BlazeFaceModel.hpp"
+#else
 #include "mlek/fwk/tflm/YoloFastestModel.hpp"
+#endif
 
 namespace alif {
 namespace app {
 
-    bool ObjectDetectionInit(arm::app::fwk::tflm::YoloFastestModel& model);
+    /** Face detector for the selected ML framework: BlazeFace on ExecuTorch,
+     *  YOLO Fastest on TensorFlow Lite Micro. */
+#if defined(MLEK_FWK_EXECUTORCH)
+    using FaceModel = arm::app::fwk::et::BlazeFaceModel;
+#else
+    using FaceModel = arm::app::fwk::tflm::YoloFastestModel;
+#endif
+
+    bool ObjectDetectionInit(FaceModel& model);
 
     /**
      * @brief       Handles the inference event.

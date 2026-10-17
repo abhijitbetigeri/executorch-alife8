@@ -27,10 +27,14 @@
  * limitations under the License.
  */
 #include "UseCaseHandler.hpp"
+#include "UseCaseCommonUtils.hpp"
+#if defined(MLEK_FWK_EXECUTORCH)
+#include "mlek/use_case/object_detection/BlazeFaceProcessing.hpp"
+#include "mlek/use_case/object_detection/DetectionResult.hpp"
+#else
 #include "mlek/use_case/object_detection/DetectorPostProcessing.hpp"
 #include "mlek/use_case/object_detection/DetectorPreProcessing.hpp"
-#include "UseCaseCommonUtils.hpp"
-#include "mlek/fwk/tflm/YoloFastestModel.hpp"
+#endif
 #include "mlek/log/log_macros.h"
 #if defined(GPIO_PROFILING)
 #include "board_utils.h"
@@ -59,14 +63,25 @@
 namespace {
 lv_style_t boxStyle;
 bool firstCameraFrameReported = false;
+#if defined(MLEK_FWK_EXECUTORCH)
+/* Per-stage cycle totals, printed to the console every kTimingReportFrames frames. */
+constexpr uint32_t kTimingReportFrames = 30;
+uint32_t timingFrames = 0;
+uint64_t preCycles = 0, infCycles = 0, postCycles = 0, frameCycles = 0;
+uint32_t lastFrameStart = 0;
+#endif
 };
 
 using arm::app::Profiler;
 using arm::app::ApplicationContext;
 using arm::app::fwk::iface::Model;
-using arm::app::fwk::tflm::YoloFastestModel;
+#if defined(MLEK_FWK_EXECUTORCH)
+using arm::app::BlazeFacePreProcess;
+using arm::app::BlazeFacePostProcess;
+#else
 using arm::app::DetectorPreProcess;
 using arm::app::DetectorPostProcess;
+#endif
 
 namespace alif {
 namespace app {
@@ -74,6 +89,16 @@ namespace app {
 namespace object_detection {
 using namespace arm::app::object_detection;
 }
+
+#if defined(MLEK_FWK_EXECUTORCH)
+} /* namespace app */
+} /* namespace alif */
+namespace arm { namespace app { namespace object_detection {
+    extern const float blazeFaceScoreThreshold; /* generated from usecase.cmake */
+} } }
+namespace alif {
+namespace app {
+#endif
 
 #ifdef POWER_MEASUREMENT_SUPPORT
     /* Labels showing average power and current, in that order. */
@@ -96,7 +121,7 @@ using namespace arm::app::object_detection;
     }
 #endif
 
-    bool ObjectDetectionInit(YoloFastestModel& model)
+    bool ObjectDetectionInit(FaceModel& model)
     {
 
         ScreenLayoutInit(hal_camera_get_preview_frame(),
@@ -126,8 +151,9 @@ using namespace arm::app::object_detection;
 
         auto inputTensor = model.GetInputTensor(0);
         const auto inputShape = inputTensor->Shape();
-        const uint32_t inputImgCols = inputShape[arm::app::fwk::tflm::YoloFastestModel::ms_inputColsIdx];
-        const uint32_t inputImgRows   = inputShape[arm::app::fwk::tflm::YoloFastestModel::ms_inputRowsIdx];
+        const uint32_t inputImgCols = inputShape[FaceModel::ms_inputColsIdx];
+        const uint32_t inputImgRows = inputShape[FaceModel::ms_inputRowsIdx];
+        info("Face model input: %" PRIu32 "x%" PRIu32 "\n", inputImgCols, inputImgRows);
 
         auto bCamera = hal_camera_configure(inputImgCols, inputImgRows, HAL_CAMERA_MODE_SINGLE_FRAME, HAL_CAMERA_COLOUR_FORMAT_RGB888);
         if (!bCamera) {
@@ -166,6 +192,9 @@ using namespace arm::app::object_detection;
             return false;
         }
 
+#if defined(MLEK_FWK_EXECUTORCH)
+        const uint32_t frameStart = Get_SysTick_Cycle_Count32();
+#endif
         auto inputTensor = model.GetInputTensor(0);
         auto outputTensor0 = model.GetOutputTensor(0);
         auto outputTensor1 = model.GetOutputTensor(1);
@@ -178,19 +207,29 @@ using namespace arm::app::object_detection;
             return false;
         }
 
-        const int inputImgCols = inputShape[arm::app::fwk::tflm::YoloFastestModel::ms_inputColsIdx];
-        const int inputImgRows   = inputShape[arm::app::fwk::tflm::YoloFastestModel::ms_inputRowsIdx];
+        const int inputImgCols = inputShape[FaceModel::ms_inputColsIdx];
+        const int inputImgRows = inputShape[FaceModel::ms_inputRowsIdx];
 
         /* Set up pre and post-processing. */
+        std::vector<object_detection::DetectionResult> results;
+#if defined(MLEK_FWK_EXECUTORCH)
+        /* BlazeFace: float RGB in, (scores, boxes) out; decode + weighted NMS on the M55. */
+        BlazeFacePreProcess preProcess(inputTensor);
+        arm::app::BlazeFaceParams blazeParams;
+        blazeParams.inputRows      = inputImgRows;
+        blazeParams.inputCols      = inputImgCols;
+        blazeParams.scoreThreshold = object_detection::blazeFaceScoreThreshold;
+        BlazeFacePostProcess postProcess(outputTensor0, outputTensor1, results, blazeParams);
+#else
         DetectorPreProcess preProcess = DetectorPreProcess(inputTensor, true, model.IsDataSigned());
 
-        std::vector<object_detection::DetectionResult> results;
         const object_detection::PostProcessParams postProcessParams {
             inputImgRows, inputImgCols, object_detection::originalImageSize,
             object_detection::anchor1, object_detection::anchor2
         };
         DetectorPostProcess postProcess = DetectorPostProcess(outputTensor0, outputTensor1,
                 results, postProcessParams);
+#endif
 
         /* Ensure there are no results leftover from previous inference when running all. */
         results.clear();
@@ -212,7 +251,7 @@ using namespace arm::app::object_detection;
                 maxPixel = std::max(maxPixel, currImage[i]);
                 nonZeroBytes += (currImage[i] != 0);
             }
-            info("YOLO camera frame: %" PRIu32 " bytes, min=%u max=%u nonzero=%" PRIu32 "\n",
+            info("Camera frame: %" PRIu32 " bytes, min=%u max=%u nonzero=%" PRIu32 "\n",
                  capturedFrameSize, minPixel, maxPixel, nonZeroBytes);
             firstCameraFrameReported = true;
         }
@@ -234,10 +273,21 @@ using namespace arm::app::object_detection;
             BOARD_LED1_BLUE_Control(BOARD_LED_STATE_TOGGLE);
 #endif
             /* Run the pre-processing, inference and post-processing. */
+#if defined(MLEK_FWK_EXECUTORCH)
+            const uint32_t t0 = Get_SysTick_Cycle_Count32();
+            /* The camera HAL returns RGB888 at the model resolution: one byte per element. */
+            if (!preProcess.DoPreProcess(currImage, capturedFrameSize)) {
+                printf_err("Pre-processing failed.");
+                return false;
+            }
+            const uint32_t t1 = Get_SysTick_Cycle_Count32();
+            (void)copySz;
+#else
             if (!preProcess.DoPreProcess(currImage, copySz)) {
                 printf_err("Pre-processing failed.");
                 return false;
             }
+#endif
 
             /* Run inference over this image. */
 #ifdef POWER_MEASUREMENT_SUPPORT
@@ -256,10 +306,34 @@ using namespace arm::app::object_detection;
             powerOk = powerOk && (power_measurement_end(&power) == 0);
 #endif
 
+#if defined(MLEK_FWK_EXECUTORCH)
+            const uint32_t t2 = Get_SysTick_Cycle_Count32();
+#endif
             if (!postProcess.DoPostProcess()) {
                 printf_err("Post-processing failed.");
                 return false;
             }
+#if defined(MLEK_FWK_EXECUTORCH)
+            const uint32_t t3 = Get_SysTick_Cycle_Count32();
+            preCycles  += t1 - t0;
+            infCycles  += t2 - t1;
+            postCycles += t3 - t2;
+            if (lastFrameStart != 0) {
+                frameCycles += frameStart - lastFrameStart;
+            }
+            lastFrameStart = frameStart;
+            if (++timingFrames == kTimingReportFrames) {
+                const double msPerCycle = 1000.0 / SystemCoreClock;
+                const double n = kTimingReportFrames;
+                info("BlazeFace avg over %" PRIu32 " frames: pre %.2f ms, NPU inference %.2f ms, "
+                     "post %.2f ms, frame-to-frame %.2f ms (%.1f FPS)\n",
+                     kTimingReportFrames, preCycles * msPerCycle / n, infCycles * msPerCycle / n,
+                     postCycles * msPerCycle / n, frameCycles * msPerCycle / (n - 1),
+                     (n - 1) * SystemCoreClock / (double)(frameCycles ? frameCycles : 1));
+                timingFrames = 0;
+                preCycles = infCycles = postCycles = frameCycles = 0;
+            }
+#endif
 
 #if defined(GPIO_PROFILING)
             BOARD_LED1_BLUE_Control(BOARD_LED_STATE_TOGGLE);

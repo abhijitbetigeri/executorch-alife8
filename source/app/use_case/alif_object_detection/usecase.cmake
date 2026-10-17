@@ -25,9 +25,12 @@
 #  limitations under the License.
 #----------------------------------------------------------------------------
 
-# Specify the ML frameworks the use case supports
-set(${use_case}_ML_FRAMEWORK "TensorFlowLiteMicro")
-if (NOT ${use_case}_ML_FRAMEWORK STREQUAL ${ML_FRAMEWORK})
+# Specify the ML frameworks the use case supports:
+#   TensorFlowLiteMicro - YOLO Fastest face detector (192x192 grayscale), the original demo
+#   ExecuTorch          - MediaPipe BlazeFace (128x128 RGB), see resources/object_detection/blazeface
+set(${use_case}_ML_FRAMEWORK "TensorFlowLiteMicro;ExecuTorch")
+if (NOT ${ML_FRAMEWORK} IN_LIST ${use_case}_ML_FRAMEWORK)
+    message(STATUS "${use_case} does not support ${ML_FRAMEWORK} framework")
     set(${use_case}_supports_${ML_FRAMEWORK} OFF)
     return()
 endif ()
@@ -36,6 +39,58 @@ set(${use_case}_supports_${ML_FRAMEWORK} ON)
 
 # Append the API to use for this use case
 list(APPEND ${use_case}_API_LIST "object_detection" "alif_ui")
+
+if (${ML_FRAMEWORK} STREQUAL "ExecuTorch")
+    if (NOT ETHOS_U_NPU_ENABLED)
+        message(FATAL_ERROR "${use_case}: the ExecuTorch BlazeFace program is compiled for Ethos-U85")
+    endif()
+
+    USER_OPTION(${use_case}_MODEL_PATH "ExecuTorch BlazeFace program (.pte) for the Ethos-U85."
+        ${MLEK_ROOT}/resources/object_detection/blazeface/blazeface_front_128_ethos-u85-256.pte
+        FILEPATH)
+
+    # Vela reports 387 KB of SRAM for the delegate; the rest is ExecuTorch's method memory.
+    USER_OPTION(${use_case}_ACTIVATION_BUF_SZ "Activation buffer size for the chosen model"
+        0x00100000
+        STRING)
+
+    USER_OPTION(${use_case}_SCORE_THRESHOLD "BlazeFace minimum face score (0-1)"
+        0.75
+        STRING)
+
+    USER_OPTION(${use_case}_SHOW_INF_TIME "Show inference time"
+        OFF
+        BOOL)
+
+    set(${use_case}_COMPILE_DEFS
+        SHOW_INF_TIME=$<BOOL:${${use_case}_SHOW_INF_TIME}>
+    )
+
+    set(EXTRA_MODEL_CODE
+        "extern const float blazeFaceScoreThreshold = ${${use_case}_SCORE_THRESHOLD}f;"
+    )
+
+    # Link only the CPU operators the program still calls (the int8 boundary).
+    if (COMMAND generate_pte_ops_lib)
+        generate_pte_ops_lib(
+            MODEL_PATH      "${${use_case}_MODEL_PATH}"
+            LIB_NAME        "${use_case}_portable_ops_lib"
+            SELECT_OPS_LIST "")
+        if (TARGET ${use_case}_portable_ops_lib)
+            set(${use_case}_LINK_LIBS ${use_case}_portable_ops_lib)
+        endif()
+    endif()
+
+    generate_model_code(
+        MODEL_PATH ${${use_case}_MODEL_PATH}
+        DESTINATION ${SRC_GEN_DIR}
+        EXPRESSIONS ${EXTRA_MODEL_CODE}
+        NAMESPACE   "arm" "app" "object_detection")
+
+    return()
+endif()
+
+# ---- TensorFlowLiteMicro (YOLO Fastest) below ----
 
 USER_OPTION(${use_case}_MODEL_IN_EXT_FLASH "Run model from external flash"
     OFF

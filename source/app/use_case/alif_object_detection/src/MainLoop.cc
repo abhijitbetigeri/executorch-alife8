@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (c) 2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2022, 2026 Arm Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,6 @@
  * limitations under the License.
  */
 #include "hal.h"                                /* Brings in platform definitions. */
-#include "mlek/fwk/tflm/YoloFastestModel.hpp"   /* Model class for running inference. */
 #include "UseCaseHandler.hpp"                   /* Handlers for different user options. */
 #include "UseCaseCommonUtils.hpp"               /* Utils functions. */
 #include "mlek/log/log_macros.h"                /* Logging functions */
@@ -47,7 +46,7 @@ void MainLoop()
 {
     init_trigger_rx();
 
-    arm::app::fwk::tflm::YoloFastestModel model;  /* Model wrapper object. */
+    alif::app::FaceModel model;  /* Model wrapper object (BlazeFace or YOLO Fastest). */
 
     arm::app::fwk::iface::MemoryRegion modelMem{arm::app::object_detection::GetModelPointer(),
                                                 arm::app::object_detection::GetModelLen()};
