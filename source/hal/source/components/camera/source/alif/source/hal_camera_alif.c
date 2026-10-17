@@ -31,7 +31,8 @@
 
 #define CAMERA_PREVIEW_WIDTH  320
 #define CAMERA_PREVIEW_HEIGHT 240
-static uint8_t preview_image[CAMERA_PREVIEW_WIDTH * CAMERA_PREVIEW_HEIGHT * RGB565_BYTES]
+/* resize_image() accepts RGB565 input here and emits RGB888 output. */
+static uint8_t preview_image[CAMERA_PREVIEW_WIDTH * CAMERA_PREVIEW_HEIGHT * RGB_BYTES]
     __attribute__((aligned(32), section(".bss.large_ram")));
 
 

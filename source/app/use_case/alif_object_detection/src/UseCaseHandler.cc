@@ -45,6 +45,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
+#include <cstring>
 
 #include "lvgl.h"
 #include "lv_port.h"
@@ -56,6 +57,8 @@
 namespace {
 lv_style_t boxStyle;
 bool firstCameraFrameReported = false;
+uint8_t lvgl_image[PREVIEW_Y][PREVIEW_X][3]
+    __attribute__((section(".bss.lcd_image_buf")));
 };
 
 using arm::app::Profiler;
@@ -96,12 +99,8 @@ using namespace arm::app::object_detection;
     bool ObjectDetectionInit(YoloFastestModel& model)
     {
 
-        ScreenLayoutInit(hal_camera_get_preview_frame(), PREVIEW_X * PREVIEW_Y * 2,
-                         PREVIEW_X, PREVIEW_Y, 256, false, true);
+        ScreenLayoutInit(lvgl_image, sizeof lvgl_image, PREVIEW_X, PREVIEW_Y, 256, false, true);
         uint32_t lv_lock_state = lv_port_lock();
-#ifdef POWER_MEASUREMENT_SUPPORT
-        ShowPowerMeasurement(nullptr);
-#endif
 
         lv_style_init(&boxStyle);
         lv_style_set_bg_opa(&boxStyle, LV_OPA_TRANSP);
@@ -215,7 +214,8 @@ using namespace arm::app::object_detection;
         {
             ScopedLVGLLock lv_lock;
 
-            /* The camera HAL supplies the unconverted RGB565 preview buffer. */
+            /* Use the LCD-accessible RGB888 buffer for the full-screen preview. */
+            std::memcpy(lvgl_image, hal_camera_get_preview_frame(), sizeof lvgl_image);
             lv_obj_invalidate(ScreenLayoutImageObject());
 
             const size_t copySz = inputTensor->Bytes();
@@ -328,14 +328,11 @@ using namespace arm::app::object_detection;
                                    int imgInputCols, int imgInputRows)
     {
         lv_obj_t *frame = ScreenLayoutImageHolderObject();
-        /* Inference uses the centered 720x720 crop of the 1280x720 sensor
-         * frame. Preview uses the whole frame scaled to 320x240. */
         const float sensorAspect = 16.0f / 9.0f;
-        const float xScale = (float) lv_obj_get_content_width(frame) /
-                             (sensorAspect * imgInputCols);
+        const float holderWidth = (float) lv_obj_get_content_width(frame);
+        const float xScale = holderWidth / (sensorAspect * imgInputCols);
         const float yScale = (float) lv_obj_get_content_height(frame) / imgInputRows;
-        const float xOffset = (sensorAspect - 1.0f) / (2.0f * sensorAspect) *
-                              lv_obj_get_content_width(frame);
+        const float xOffset = (sensorAspect - 1.0f) / (2.0f * sensorAspect) * holderWidth;
 
         DeleteBoxes(frame);
 

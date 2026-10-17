@@ -76,10 +76,10 @@ void ScreenLayoutInit(const void *imgData,
         fullScreenImageDesc.data = (const uint8_t *)imgData;
         fullScreenImageDesc.data_size = imgSize;
         fullScreenImageDesc.header.magic = LV_IMAGE_HEADER_MAGIC;
-        fullScreenImageDesc.header.cf = LV_COLOR_FORMAT_NATIVE;
+        fullScreenImageDesc.header.cf = LV_COLOR_FORMAT_RGB888;
         fullScreenImageDesc.header.w = imgWidth;
         fullScreenImageDesc.header.h = imgHeight;
-        fullScreenImageDesc.header.stride = imgWidth * LV_COLOR_DEPTH / 8;
+        fullScreenImageDesc.header.stride = imgWidth * 3;
         fullScreenImageDesc.header.flags = 0;
         lv_image_set_scale(imageObj, imgZoom);
         lv_image_set_antialias(imageObj, false);
