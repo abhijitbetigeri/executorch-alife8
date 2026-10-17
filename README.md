@@ -1,5 +1,7 @@
 # Alif Semiconductor ML Embedded Evaluation Kit Examples
 
+For this DevKit-E8 camera and face-detection firmware, see [build and flash instructions](docs/alif-e8-camera.md).
+
 Built on the Arm ML Embedded Evaluation Kit, this repository provides a collection of ML models that can be compiled and run on Alif development boards.
 
 For instructions on setting up the build environment and creating loadable images, please refer to the [ML Embedded Evaluation Kit document](ML_Embedded_Evaluation_Kit.md) file in the root directory.

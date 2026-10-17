@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2024 Arm Limited and/or its
+ * SPDX-FileCopyrightText: Copyright 2024, 2026 Arm Limited and/or its
  * affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -74,7 +74,7 @@ bool hal_camera_configure(uint32_t width,
  */
 bool hal_camera_set_buffer(uint8_t* buffer, const uint32_t size);
 
-/** Returns the most recent full-screen RGB565 camera preview frame. */
+/** Returns the most recent full-panel RGB888 preview in LVGL B,G,R byte order. */
 const uint8_t *hal_camera_get_preview_frame(void);
 
 /**

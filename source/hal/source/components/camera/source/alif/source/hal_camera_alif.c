@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2024 Arm Limited and/or its
+ * SPDX-FileCopyrightText: Copyright 2024, 2026 Arm Limited and/or its
  * affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -29,9 +29,9 @@
 #include <tgmath.h>
 #include <string.h>
 
-#define CAMERA_PREVIEW_WIDTH  320
-#define CAMERA_PREVIEW_HEIGHT 240
-/* resize_image() accepts RGB565 input here and emits RGB888 output. */
+#define CAMERA_PREVIEW_WIDTH  RTE_PANEL_HACTIVE_TIME
+#define CAMERA_PREVIEW_HEIGHT RTE_PANEL_VACTIVE_LINE
+/* Full-panel preview uses LVGL RGB888 (B,G,R byte order). */
 static uint8_t preview_image[CAMERA_PREVIEW_WIDTH * CAMERA_PREVIEW_HEIGHT * RGB_BYTES]
     __attribute__((aligned(32), section(".bss.large_ram")));
 
@@ -189,6 +189,12 @@ bool hal_camera_start(void)
     }
 
 #ifndef USE_FAKE_CAMERA
+#if !RTE_ISP
+    /* The camera writes this buffer directly; discard any stale cached lines
+     * before handing it to the DMA engine. The buffer is 32-byte aligned and
+     * its configured size is a cache-line multiple. */
+    SCB_InvalidateDCache_by_Addr((uint32_t*)raw_image, sizeof raw_image);
+#endif
     camera_start(CAMERA_MODE_SNAPSHOT);
 #endif
     s_cam_dev.status = HAL_CAMERA_STATUS_RUNNING;
@@ -227,17 +233,64 @@ const uint8_t* hal_camera_get_captured_frame(uint32_t* size)
             printf_err("Error reported\n");
             return buffer;
         }
+#if !RTE_ISP
+        /* Match the camera tutorial: invalidate the DMA-written frame after
+         * capture, without writing stale cache lines back over it. */
+        SCB_InvalidateDCache_by_Addr((uint32_t*)raw_image, sizeof raw_image);
+#else
         SCB_CleanInvalidateDCache();
-        buffer = get_image_data(s_cam_dev.frame_width, s_cam_dev.frame_height, rgb_image.tiff_header, s_cam_dev.output_buffer, s_cam_dev.output_buffer_size, raw_image);
-        *size = s_cam_dev.bytes_per_frame;
-#if CIMAGE_USE_RGB565
-        if (resize_image(raw_image, CIMAGE_X, CIMAGE_Y, preview_image,
-                         CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT,
-                         RGB565_BYTES) < 0) {
-            printf_err("Failed to resize camera preview\n");
-            return NULL;
-        }
 #endif
+#if CIMAGE_USE_RGB565
+        /* Correct the sensor mounting for both preview and model input. */
+        uint16_t* upright_pixels   = (uint16_t*)raw_image;
+        const uint32_t pixel_count = CIMAGE_X * CIMAGE_Y;
+        for (uint32_t i = 0; i < pixel_count / 2; ++i) {
+            const uint16_t pixel                = upright_pixels[i];
+            upright_pixels[i]                   = upright_pixels[pixel_count - 1 - i];
+            upright_pixels[pixel_count - 1 - i] = pixel;
+        }
+        /* Center-crop to fill the panel without stretching. Read the original
+         * sensor stride directly, before model preprocessing crops it in place.
+         * Reverse x to correct the camera's mirrored view. */
+        const uint32_t crop_width =
+            CIMAGE_X * CAMERA_PREVIEW_HEIGHT > CIMAGE_Y * CAMERA_PREVIEW_WIDTH
+                ? CIMAGE_Y * CAMERA_PREVIEW_WIDTH / CAMERA_PREVIEW_HEIGHT
+                : CIMAGE_X;
+        const uint32_t crop_height =
+            CIMAGE_X * CAMERA_PREVIEW_HEIGHT > CIMAGE_Y * CAMERA_PREVIEW_WIDTH
+                ? CIMAGE_Y
+                : CIMAGE_X * CAMERA_PREVIEW_HEIGHT / CAMERA_PREVIEW_WIDTH;
+        const uint32_t x_origin       = (CIMAGE_X - crop_width) / 2;
+        const uint32_t y_origin       = (CIMAGE_Y - crop_height) / 2;
+        const uint16_t* sensor_pixels = (const uint16_t*)raw_image;
+        for (uint32_t y = 0; y < CAMERA_PREVIEW_HEIGHT; ++y) {
+            const uint32_t sy = y_origin + y * crop_height / CAMERA_PREVIEW_HEIGHT;
+            uint8_t* dst      = preview_image + y * CAMERA_PREVIEW_WIDTH * RGB_BYTES;
+            for (uint32_t x = 0; x < CAMERA_PREVIEW_WIDTH; ++x) {
+                const uint32_t sx =
+                    x_origin + crop_width - 1 - x * crop_width / CAMERA_PREVIEW_WIDTH;
+                const uint16_t pixel = sensor_pixels[sy * CIMAGE_X + sx];
+                const uint8_t blue   = pixel & 0x1f;
+                const uint8_t green  = (pixel >> 5) & 0x3f;
+                const uint8_t red    = (pixel >> 11) & 0x1f;
+                *dst++               = (blue << 3) | (blue >> 2);
+                *dst++               = (green << 2) | (green >> 4);
+                *dst++               = (red << 3) | (red >> 2);
+            }
+        }
+        /* Keep the full-panel source coherent for the display/DAVE2D reader. */
+        SCB_CleanDCache_by_Addr((uint32_t*)preview_image, sizeof preview_image);
+#endif
+        /* Preprocessing crops raw_image in place; generate the preview first. */
+        buffer = get_image_data(s_cam_dev.frame_width,
+                                s_cam_dev.frame_height,
+                                rgb_image.tiff_header,
+                                s_cam_dev.output_buffer,
+                                s_cam_dev.output_buffer_size,
+                                raw_image);
+        if (buffer != NULL) {
+            *size = s_cam_dev.bytes_per_frame;
+        }
     }
     return buffer;
 }

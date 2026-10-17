@@ -1,6 +1,6 @@
 /* This file was ported to work on Alif Semiconductor devices. */
 
-/* Copyright (C) 2023 Alif Semiconductor - All Rights Reserved.
+/* Copyright (C) 2023, 2026 Alif Semiconductor - All Rights Reserved.
  * Use, distribution and modification of this code is permitted under the
  * terms stated in the Alif Semiconductor Software License Agreement
  *
@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (c) 2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2022, 2026 Arm Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,18 +47,18 @@
 #include <cmath>
 #include <cstring>
 
-#include "lvgl.h"
-#include "lv_port.h"
+#include "RTE_Device.h"
+#include "image_processing.h"
 #include "lv_paint_utils.h"
+#include "lv_port.h"
+#include "lvgl.h"
 
-#define PREVIEW_X       320
-#define PREVIEW_Y       240
+#define PREVIEW_X RTE_PANEL_HACTIVE_TIME
+#define PREVIEW_Y RTE_PANEL_VACTIVE_LINE
 
 namespace {
 lv_style_t boxStyle;
 bool firstCameraFrameReported = false;
-uint8_t lvgl_image[PREVIEW_Y][PREVIEW_X][3]
-    __attribute__((section(".bss.lcd_image_buf")));
 };
 
 using arm::app::Profiler;
@@ -99,7 +99,13 @@ using namespace arm::app::object_detection;
     bool ObjectDetectionInit(YoloFastestModel& model)
     {
 
-        ScreenLayoutInit(lvgl_image, sizeof lvgl_image, PREVIEW_X, PREVIEW_Y, 256, false, true);
+        ScreenLayoutInit(hal_camera_get_preview_frame(),
+                         PREVIEW_X * PREVIEW_Y * 3,
+                         PREVIEW_X,
+                         PREVIEW_Y,
+                         256,
+                         false,
+                         true);
         uint32_t lv_lock_state = lv_port_lock();
 
         lv_style_init(&boxStyle);
@@ -214,8 +220,7 @@ using namespace arm::app::object_detection;
         {
             ScopedLVGLLock lv_lock;
 
-            /* Use the LCD-accessible RGB888 buffer for the full-screen preview. */
-            std::memcpy(lvgl_image, hal_camera_get_preview_frame(), sizeof lvgl_image);
+            /* Camera preview buffer is full-panel RGB888 in LVGL byte order. */
             lv_obj_invalidate(ScreenLayoutImageObject());
 
             const size_t copySz = inputTensor->Bytes();
@@ -328,18 +333,27 @@ using namespace arm::app::object_detection;
                                    int imgInputCols, int imgInputRows)
     {
         lv_obj_t *frame = ScreenLayoutImageHolderObject();
-        const float sensorAspect = 16.0f / 9.0f;
-        const float holderWidth = (float) lv_obj_get_content_width(frame);
-        const float xScale = holderWidth / (sensorAspect * imgInputCols);
-        const float yScale = (float) lv_obj_get_content_height(frame) / imgInputRows;
-        const float xOffset = (sensorAspect - 1.0f) / (2.0f * sensorAspect) * holderWidth;
+        const float holderWidth   = (float)lv_obj_get_content_width(frame);
+        const float holderHeight  = (float)lv_obj_get_content_height(frame);
+        const float modelWidth    = (float)CIMAGE_Y * imgInputCols / imgInputRows;
+        const float modelHeight   = (float)CIMAGE_Y;
+        const float previewWidth  = CIMAGE_X * PREVIEW_Y > CIMAGE_Y * PREVIEW_X
+                                        ? (float)(CIMAGE_Y * PREVIEW_X / PREVIEW_Y)
+                                        : (float)CIMAGE_X;
+        const float previewHeight = CIMAGE_X * PREVIEW_Y > CIMAGE_Y * PREVIEW_X
+                                        ? (float)CIMAGE_Y
+                                        : (float)(CIMAGE_X * PREVIEW_Y / PREVIEW_X);
+        const float xScale        = holderWidth * modelWidth / (previewWidth * imgInputCols);
+        const float yScale        = holderHeight * modelHeight / (previewHeight * imgInputRows);
+        const float xOffset       = (previewWidth - modelWidth) * holderWidth / (2 * previewWidth);
+        const float yOffset = (previewHeight - modelHeight) * holderHeight / (2 * previewHeight);
 
         DeleteBoxes(frame);
 
         for (const auto& result: results) {
             CreateBox(frame,
-                      floor(xOffset + result.m_x0 * xScale),
-                      floor(result.m_y0 * yScale),
+                      floor(holderWidth - xOffset - (result.m_x0 + result.m_w) * xScale),
+                      floor(yOffset + result.m_y0 * yScale),
                       ceil(result.m_w * xScale),
                       ceil(result.m_h * yScale));
         }

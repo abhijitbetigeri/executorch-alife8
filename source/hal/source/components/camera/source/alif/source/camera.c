@@ -1,4 +1,4 @@
-/* Copyright (C) 2022 Alif Semiconductor - All Rights Reserved.
+/* Copyright (C) 2022, 2026 Alif Semiconductor - All Rights Reserved.
  * Use, distribution and modification of this code is permitted under the
  * terms stated in the Alif Semiconductor Software License Agreement
  *
@@ -234,17 +234,19 @@ int32_t camera_init(uint8_t* buffer)
         return res;
     }
 
-    res = camera->Control(CPI_CAMERA_SENSOR_CONFIGURE, 0);
-    if (res != ARM_DRIVER_OK) {
-        return res;
-    }
-
 #ifdef CPI_CONFIGURE
     res = camera->Control(CPI_CONFIGURE, 0);
     if (res != ARM_DRIVER_OK) {
         return res;
     }
 #endif
+
+    /* Configure the receiver before starting/configuring the MT9M114 stream,
+     * matching the working DevKit-E8 camera example. */
+    res = camera->Control(CPI_CAMERA_SENSOR_CONFIGURE, 0);
+    if (res != ARM_DRIVER_OK) {
+        return res;
+    }
 
     res = camera->Control(CPI_EVENTS_CONFIGURE,
                           ARM_CPI_EVENT_CAMERA_CAPTURE_STOPPED
@@ -316,7 +318,7 @@ void camera_start(uint32_t mode)
         res = camera->CaptureVideo(camera_capture_buffer);
     }
     if (res != ARM_DRIVER_OK) {
-        printf("Error: camera capture start failed: %ld\n", res);
+        printf("Error: camera capture start failed: %ld\n", (long)res);
     }
 }
 
