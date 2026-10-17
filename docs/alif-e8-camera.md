@@ -4,6 +4,24 @@ This checkout runs YOLO Fastest **face detection only** on the Ensemble E8 M55 H
 and Ethos-U85. The deployed model is `yolo-fastest_192_face_v4_vela_Z256.tflite`
 and accepts a 192×192 grayscale image. It does not classify general objects.
 
+## AppKit-E8 with its fitted camera
+
+Use the AppKit board definition and OV5675 driver for the current default fitted
+camera. Boards shipped with another sensor need the corresponding
+`ALIF_CAMERA_MODULE`; see [Alif’s viewfinder camera list](https://github.com/alifsemi/alif_M55-viewfinder).
+After the initial configuration below, switch an existing build with:
+
+```sh
+cmake -S . -B build-yolo -DTARGET_BOARD=AppKit-e8 -DALIF_CAMERA_MODULE=OV5675
+cmake --build build-yolo --target mlek_alif_object_detection -j8
+```
+
+The M55 HP J-Link device and flash command are the same as for the DevKit.
+The AppKit preview is generated after Bayer demosaicing and before in-place
+model cropping. It uses the camera's native orientation instead of the 180°
+rotation and horizontal correction required by the previous DevKit mounting.
+Box coordinates follow the AppKit preview transform.
+
 ## Camera and display
 
 - Camera: AP-Vision MT9M114, MIPI RGB565 at 1280×720.

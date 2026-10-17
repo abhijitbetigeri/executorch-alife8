@@ -223,6 +223,53 @@ static hal_cam_status wait_for_capture(void)
     return s_cam_dev.status;
 }
 
+void camera_update_preview(const uint8_t* image,
+                           uint32_t width,
+                           uint32_t height,
+                           uint32_t pixel_bytes)
+{
+    /* Center-crop to fill the panel without stretching. Read the original
+     * sensor stride directly, before model preprocessing crops it in place.
+     * Preserve the DevKit mounting correction; AppKit uses native orientation. */
+    const uint32_t crop_width     = width * CAMERA_PREVIEW_HEIGHT > height * CAMERA_PREVIEW_WIDTH
+                                        ? height * CAMERA_PREVIEW_WIDTH / CAMERA_PREVIEW_HEIGHT
+                                        : width;
+    const uint32_t crop_height    = width * CAMERA_PREVIEW_HEIGHT > height * CAMERA_PREVIEW_WIDTH
+                                        ? height
+                                        : width * CAMERA_PREVIEW_HEIGHT / CAMERA_PREVIEW_WIDTH;
+    const uint32_t x_origin       = (width - crop_width) / 2;
+    const uint32_t y_origin       = (height - crop_height) / 2;
+    const uint16_t* sensor_pixels = (const uint16_t*)image;
+    for (uint32_t y = 0; y < CAMERA_PREVIEW_HEIGHT; ++y) {
+        const uint32_t sy = y_origin + y * crop_height / CAMERA_PREVIEW_HEIGHT;
+        uint8_t* dst      = preview_image + y * CAMERA_PREVIEW_WIDTH * RGB_BYTES;
+        for (uint32_t x = 0; x < CAMERA_PREVIEW_WIDTH; ++x) {
+            const uint32_t column = x * crop_width / CAMERA_PREVIEW_WIDTH;
+#ifdef ALIF_CAMERA_APPKIT
+            const uint32_t sx = x_origin + column;
+#else
+            const uint32_t sx = x_origin + crop_width - 1 - column;
+#endif
+            if (pixel_bytes == RGB_BYTES) {
+                const uint8_t* src = image + (sy * width + sx) * RGB_BYTES;
+                *dst++             = src[2];
+                *dst++             = src[1];
+                *dst++             = src[0];
+                continue;
+            }
+            const uint16_t pixel = sensor_pixels[sy * width + sx];
+            const uint8_t blue   = pixel & 0x1f;
+            const uint8_t green  = (pixel >> 5) & 0x3f;
+            const uint8_t red    = (pixel >> 11) & 0x1f;
+            *dst++               = (blue << 3) | (blue >> 2);
+            *dst++               = (green << 2) | (green >> 4);
+            *dst++               = (red << 3) | (red >> 2);
+        }
+    }
+    /* Keep the full-panel source coherent for the display/DAVE2D reader. */
+    SCB_CleanDCache_by_Addr((uint32_t*)preview_image, sizeof preview_image);
+}
+
 const uint8_t* hal_camera_get_captured_frame(uint32_t* size)
 {
     const uint8_t* buffer = NULL;
@@ -241,7 +288,8 @@ const uint8_t* hal_camera_get_captured_frame(uint32_t* size)
         SCB_CleanInvalidateDCache();
 #endif
 #if CIMAGE_USE_RGB565
-        /* Correct the sensor mounting for both preview and model input. */
+#ifndef ALIF_CAMERA_APPKIT
+        /* Correct the DevKit sensor mounting for preview and model input. */
         uint16_t* upright_pixels   = (uint16_t*)raw_image;
         const uint32_t pixel_count = CIMAGE_X * CIMAGE_Y;
         for (uint32_t i = 0; i < pixel_count / 2; ++i) {
@@ -249,37 +297,8 @@ const uint8_t* hal_camera_get_captured_frame(uint32_t* size)
             upright_pixels[i]                   = upright_pixels[pixel_count - 1 - i];
             upright_pixels[pixel_count - 1 - i] = pixel;
         }
-        /* Center-crop to fill the panel without stretching. Read the original
-         * sensor stride directly, before model preprocessing crops it in place.
-         * Reverse x to correct the camera's mirrored view. */
-        const uint32_t crop_width =
-            CIMAGE_X * CAMERA_PREVIEW_HEIGHT > CIMAGE_Y * CAMERA_PREVIEW_WIDTH
-                ? CIMAGE_Y * CAMERA_PREVIEW_WIDTH / CAMERA_PREVIEW_HEIGHT
-                : CIMAGE_X;
-        const uint32_t crop_height =
-            CIMAGE_X * CAMERA_PREVIEW_HEIGHT > CIMAGE_Y * CAMERA_PREVIEW_WIDTH
-                ? CIMAGE_Y
-                : CIMAGE_X * CAMERA_PREVIEW_HEIGHT / CAMERA_PREVIEW_WIDTH;
-        const uint32_t x_origin       = (CIMAGE_X - crop_width) / 2;
-        const uint32_t y_origin       = (CIMAGE_Y - crop_height) / 2;
-        const uint16_t* sensor_pixels = (const uint16_t*)raw_image;
-        for (uint32_t y = 0; y < CAMERA_PREVIEW_HEIGHT; ++y) {
-            const uint32_t sy = y_origin + y * crop_height / CAMERA_PREVIEW_HEIGHT;
-            uint8_t* dst      = preview_image + y * CAMERA_PREVIEW_WIDTH * RGB_BYTES;
-            for (uint32_t x = 0; x < CAMERA_PREVIEW_WIDTH; ++x) {
-                const uint32_t sx =
-                    x_origin + crop_width - 1 - x * crop_width / CAMERA_PREVIEW_WIDTH;
-                const uint16_t pixel = sensor_pixels[sy * CIMAGE_X + sx];
-                const uint8_t blue   = pixel & 0x1f;
-                const uint8_t green  = (pixel >> 5) & 0x3f;
-                const uint8_t red    = (pixel >> 11) & 0x1f;
-                *dst++               = (blue << 3) | (blue >> 2);
-                *dst++               = (green << 2) | (green >> 4);
-                *dst++               = (red << 3) | (red >> 2);
-            }
-        }
-        /* Keep the full-panel source coherent for the display/DAVE2D reader. */
-        SCB_CleanDCache_by_Addr((uint32_t*)preview_image, sizeof preview_image);
+#endif
+        camera_update_preview(raw_image, CIMAGE_X, CIMAGE_Y, RGB565_BYTES);
 #endif
         /* Preprocessing crops raw_image in place; generate the preview first. */
         buffer = get_image_data(s_cam_dev.frame_width,

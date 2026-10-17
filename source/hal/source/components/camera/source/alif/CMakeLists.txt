@@ -1,6 +1,6 @@
 # /* This file was ported to work on Alif Semiconductor devices. */
 #
-#/* Copyright (C) 2025 Alif Semiconductor - All Rights Reserved.
+#/* Copyright (C) 2025-2026 Alif Semiconductor - All Rights Reserved.
 # * Use, distribution and modification of this code is permitted under the
 # * terms stated in the Alif Semiconductor Software License Agreement
 # *
@@ -49,6 +49,7 @@ target_compile_definitions(${CAMERA_ALIF_COMPONENT_TARGET}
     PUBLIC
     ALIF_CAMERA_MODULE_${ALIF_CAMERA_MODULE}=1
     ALIF_ISP_ENABLED=$<BOOL:${ALIF_ISP_ENABLED}>
+    $<$<STREQUAL:${TARGET_BOARD},AppKit-e8>:ALIF_CAMERA_APPKIT>
     $<$<BOOL:${USE_FAKE_CAMERA}>:USE_FAKE_CAMERA>)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "ARMClang")

@@ -694,6 +694,11 @@ const uint8_t *get_image_data(int ml_width, int ml_height, tiff_header_t tiff_he
 #endif
 #endif
 
+#if !CIMAGE_USE_RGB565
+    /* Demosaicing produces full RGB; preserve it for the preview before crop. */
+    camera_update_preview(image_data, capture_width, capture_height, RGB_BYTES);
+#endif
+
     // Cropping and scaling
 #if CIMAGE_USE_RGB565
     if (ml_width * ml_height * RGB_BYTES > image_size) {

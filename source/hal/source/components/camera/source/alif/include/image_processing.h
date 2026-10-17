@@ -1,4 +1,4 @@
-/* Copyright (C) 2023 Alif Semiconductor - All Rights Reserved.
+/* Copyright (C) 2023, 2026 Alif Semiconductor - All Rights Reserved.
  * Use, distribution and modification of this code is permitted under the
  * terms stated in the Alif Semiconductor Software License Agreement
  *
@@ -101,6 +101,12 @@ int frame_crop(const void *input_fb, uint32_t ip_row_size, uint32_t ip_col_size,
 int crop_and_interpolate(uint8_t *image, uint32_t srcWidth, uint32_t srcHeight, uint8_t *dstImage, uint32_t dstWidth, uint32_t dstHeight, uint32_t bpp);
 void white_balance(int width, int height, const uint8_t *sp, uint8_t *dp);
 int bayer_to_RGB(uint8_t *src, uint8_t *dest);
+/* Called after RGB conversion and before in-place model cropping. */
+void camera_update_preview(const uint8_t* image,
+                           uint32_t width,
+                           uint32_t height,
+                           uint32_t pixel_bytes);
+
 int resize_image(const uint8_t *srcImage, int srcWidth, int srcHeight,
                  uint8_t *dstImage, int dstWidth, int dstHeight, int pixelSize);
 

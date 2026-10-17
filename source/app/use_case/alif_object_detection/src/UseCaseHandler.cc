@@ -351,8 +351,13 @@ using namespace arm::app::object_detection;
         DeleteBoxes(frame);
 
         for (const auto& result: results) {
+#ifdef ALIF_CAMERA_APPKIT
+            const float left = xOffset + result.m_x0 * xScale;
+#else
+            const float left = holderWidth - xOffset - (result.m_x0 + result.m_w) * xScale;
+#endif
             CreateBox(frame,
-                      floor(holderWidth - xOffset - (result.m_x0 + result.m_w) * xScale),
+                      floor(left),
                       floor(yOffset + result.m_y0 * yScale),
                       ceil(result.m_w * xScale),
                       ceil(result.m_h * yScale));
