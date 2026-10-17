@@ -74,6 +74,9 @@ bool hal_camera_configure(uint32_t width,
  */
 bool hal_camera_set_buffer(uint8_t* buffer, const uint32_t size);
 
+/** Returns the most recent full-screen RGB565 camera preview frame. */
+const uint8_t *hal_camera_get_preview_frame(void);
+
 /**
  *  @brief Starts capturing data from camera device.
  *  @return     true if successful, false otherwise.

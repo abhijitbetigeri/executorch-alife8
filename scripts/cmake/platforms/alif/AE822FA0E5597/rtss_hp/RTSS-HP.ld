@@ -33,7 +33,8 @@
 
 __STACK_SIZE = 0x00008000;
 __HEAP_SIZE  = 0x00017000;
-__ROM_BASE = 0x80008000;
+/* DevKit E8 app image starts at the same MRAM boot address as the CMSIS app. */
+__ROM_BASE = 0x80200000;
 __ROM_SIZE = 0x00477000;
 
 #ifdef BOARD_OSPI_FLASH_BASE

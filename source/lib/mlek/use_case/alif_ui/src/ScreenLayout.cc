@@ -42,7 +42,8 @@ void ScreenLayoutInit(const void *imgData,
                       int imgWidth,
                       int imgHeight,
                       unsigned short imgZoom,
-                      bool hasProgressBar)
+                      bool hasProgressBar,
+                      bool fullScreenImage)
 {
     lv_port_disp_init();
 
@@ -59,6 +60,42 @@ void ScreenLayoutInit(const void *imgData,
 
     lv_style_set_text_font(&style, &lv_font_montserrat_28);
     lv_obj_add_style(screen, &style, LV_PART_MAIN);
+
+    if (fullScreenImage && imgData != nullptr) {
+        imageHolder = lv_obj_create(screen);
+        lv_obj_set_pos(imageHolder, 0, 0);
+        lv_obj_set_size(imageHolder, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_style_pad_all(imageHolder, 0, LV_PART_MAIN);
+        lv_obj_set_style_border_width(imageHolder, 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(imageHolder, 0, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(imageHolder, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_clear_flag(imageHolder, LV_OBJ_FLAG_SCROLLABLE);
+
+        imageObj = lv_image_create(imageHolder);
+        static lv_image_dsc_t fullScreenImageDesc;
+        fullScreenImageDesc.data = (const uint8_t *)imgData;
+        fullScreenImageDesc.data_size = imgSize;
+        fullScreenImageDesc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        fullScreenImageDesc.header.cf = LV_COLOR_FORMAT_NATIVE;
+        fullScreenImageDesc.header.w = imgWidth;
+        fullScreenImageDesc.header.h = imgHeight;
+        fullScreenImageDesc.header.stride = imgWidth * LV_COLOR_DEPTH / 8;
+        fullScreenImageDesc.header.flags = 0;
+        lv_image_set_scale(imageObj, imgZoom);
+        lv_image_set_antialias(imageObj, false);
+        lv_image_set_src(imageObj, &fullScreenImageDesc);
+        lv_obj_center(imageObj);
+
+        labelHeader = nullptr;
+        for (auto &lbl : labelResult) {
+            lbl = nullptr;
+        }
+        labelTime = nullptr;
+        ledObj = nullptr;
+        barObj = nullptr;
+        lv_port_unlock(lv_lock_state);
+        return;
+    }
 
     /* Grid layout for the screen */
     int32_t scrWidth = lv_obj_get_width(screen);

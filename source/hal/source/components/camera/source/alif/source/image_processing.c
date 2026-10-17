@@ -703,6 +703,21 @@ const uint8_t *get_image_data(int ml_width, int ml_height, tiff_header_t tiff_he
     crop_and_interpolate(raw_image, CIMAGE_X, CIMAGE_Y,
                          image_data, ml_width, ml_height,
                          RGB565_BYTES * 8);
+    /* The MT9M114 direct MIPI mode captures RGB565, while MLEK's display
+     * and model preprocessing consume packed RGB888. Expand backwards so the
+     * three-byte output can safely overwrite the two-byte input in place. */
+    for (uint32_t pixel = (uint32_t)ml_width * ml_height; pixel-- > 0;) {
+        const uint32_t src = pixel * RGB565_BYTES;
+        const uint16_t rgb565 = (uint16_t)image_data[src] |
+                                ((uint16_t)image_data[src + 1] << 8);
+        const uint8_t red5 = (rgb565 >> 11) & 0x1F;
+        const uint8_t green6 = (rgb565 >> 5) & 0x3F;
+        const uint8_t blue5 = rgb565 & 0x1F;
+        const uint32_t dst = pixel * RGB_BYTES;
+        image_data[dst] = (red5 << 3) | (red5 >> 2);
+        image_data[dst + 1] = (green6 << 2) | (green6 >> 4);
+        image_data[dst + 2] = (blue5 << 3) | (blue5 >> 2);
+    }
 #else
     (void)image_size;
     if (ml_width > capture_width || ml_height > capture_height) {

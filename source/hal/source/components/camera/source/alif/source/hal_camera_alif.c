@@ -29,6 +29,11 @@
 #include <tgmath.h>
 #include <string.h>
 
+#define CAMERA_PREVIEW_WIDTH  320
+#define CAMERA_PREVIEW_HEIGHT 240
+static uint8_t preview_image[CAMERA_PREVIEW_WIDTH * CAMERA_PREVIEW_HEIGHT * RGB565_BYTES]
+    __attribute__((aligned(32), section(".bss.large_ram")));
+
 
 #if !defined(RTE_Drivers_CPI)
 #define USE_FAKE_CAMERA 1
@@ -224,8 +229,21 @@ const uint8_t* hal_camera_get_captured_frame(uint32_t* size)
         SCB_CleanInvalidateDCache();
         buffer = get_image_data(s_cam_dev.frame_width, s_cam_dev.frame_height, rgb_image.tiff_header, s_cam_dev.output_buffer, s_cam_dev.output_buffer_size, raw_image);
         *size = s_cam_dev.bytes_per_frame;
+#if CIMAGE_USE_RGB565
+        if (resize_image(raw_image, CIMAGE_X, CIMAGE_Y, preview_image,
+                         CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT,
+                         RGB565_BYTES) < 0) {
+            printf_err("Failed to resize camera preview\n");
+            return NULL;
+        }
+#endif
     }
     return buffer;
+}
+
+const uint8_t *hal_camera_get_preview_frame(void)
+{
+    return preview_image;
 }
 
 bool hal_camera_stop(void)

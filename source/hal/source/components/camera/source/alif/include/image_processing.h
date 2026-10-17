@@ -101,6 +101,8 @@ int frame_crop(const void *input_fb, uint32_t ip_row_size, uint32_t ip_col_size,
 int crop_and_interpolate(uint8_t *image, uint32_t srcWidth, uint32_t srcHeight, uint8_t *dstImage, uint32_t dstWidth, uint32_t dstHeight, uint32_t bpp);
 void white_balance(int width, int height, const uint8_t *sp, uint8_t *dp);
 int bayer_to_RGB(uint8_t *src, uint8_t *dest);
+int resize_image(const uint8_t *srcImage, int srcWidth, int srcHeight,
+                 uint8_t *dstImage, int dstWidth, int dstHeight, int pixelSize);
 
 const uint8_t *get_image_data(int ml_width, int ml_height, tiff_header_t tiff_header, uint8_t *image_data, int image_size, uint8_t *raw_image);
 #endif /* IMAGE_PROCESSING_H_ */

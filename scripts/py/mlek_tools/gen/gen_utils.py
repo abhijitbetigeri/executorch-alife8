@@ -24,8 +24,6 @@ from pathlib import Path
 
 import jinja2
 import numpy as np
-import resampy
-import soundfile as sf
 
 
 @dataclass
@@ -77,6 +75,8 @@ def read_audio_file(
     :returns:           Audio data and its sample rate.
     :raises OSError:    Raised if the audio file cannot be opened.
     """
+    import soundfile as sf
+
     try:
         with sf.SoundFile(path) as audio_file:
             origin_sr = audio_file.samplerate
@@ -115,6 +115,8 @@ def _resample_audio(
     :returns:           The resampled audio array.
     """
     ratio = float(target_sr) / origin_sr
+    import resampy
+
     axis = -1
     n_samples = int(np.ceil(y.shape[axis] * ratio))
 

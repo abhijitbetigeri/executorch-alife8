@@ -42,6 +42,7 @@
 #include "power_measurement.h"
 #endif
 
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
 
@@ -49,13 +50,12 @@
 #include "lv_port.h"
 #include "lv_paint_utils.h"
 
-#define LIMAGE_X        192
-#define LIMAGE_Y        192
-#define LV_ZOOM         (2 * 256)
+#define PREVIEW_X       320
+#define PREVIEW_Y       240
 
 namespace {
 lv_style_t boxStyle;
-lvgl_pixel_t lvgl_image[LIMAGE_Y][LIMAGE_X] __attribute__((section(".bss.lcd_image_buf")));                      // 192x192x2 = 73,728
+bool firstCameraFrameReported = false;
 };
 
 using arm::app::Profiler;
@@ -96,11 +96,9 @@ using namespace arm::app::object_detection;
     bool ObjectDetectionInit(YoloFastestModel& model)
     {
 
-        ScreenLayoutInit(lvgl_image, sizeof lvgl_image, LIMAGE_X, LIMAGE_Y, LV_ZOOM);
+        ScreenLayoutInit(hal_camera_get_preview_frame(), PREVIEW_X * PREVIEW_Y * 2,
+                         PREVIEW_X, PREVIEW_Y, 256, false, true);
         uint32_t lv_lock_state = lv_port_lock();
-        lv_label_set_text_static(ScreenLayoutHeaderObject(), "Face Detection");
-        lv_label_set_text_static(ScreenLayoutLabelObject(0), "Faces Detected: 0");
-        lv_label_set_text_static(ScreenLayoutLabelObject(1), "192px image (24-bit)");
 #ifdef POWER_MEASUREMENT_SUPPORT
         ShowPowerMeasurement(nullptr);
 #endif
@@ -111,8 +109,8 @@ using namespace arm::app::object_detection;
         lv_style_set_border_width(&boxStyle, 0);
         lv_style_set_outline_width(&boxStyle, 2);
         lv_style_set_outline_pad(&boxStyle, 0);
-        lv_style_set_outline_color(&boxStyle, lv_theme_get_color_primary(ScreenLayoutHeaderObject()));
-        lv_style_set_radius(&boxStyle, 4);
+        lv_style_set_outline_color(&boxStyle, lv_color_hex(0x00FF00));
+        lv_style_set_radius(&boxStyle, 0);
         lv_port_unlock(lv_lock_state);
 
         /* Initialise the camera */
@@ -200,21 +198,25 @@ using namespace arm::app::object_detection;
             printf_err("hal_camera_get_captured_frame failed");
             return false;
         }
+        if (!firstCameraFrameReported) {
+            uint8_t minPixel = 255;
+            uint8_t maxPixel = 0;
+            uint32_t nonZeroBytes = 0;
+            for (uint32_t i = 0; i < capturedFrameSize; ++i) {
+                minPixel = std::min(minPixel, currImage[i]);
+                maxPixel = std::max(maxPixel, currImage[i]);
+                nonZeroBytes += (currImage[i] != 0);
+            }
+            info("YOLO camera frame: %" PRIu32 " bytes, min=%u max=%u nonzero=%" PRIu32 "\n",
+                 capturedFrameSize, minPixel, maxPixel, nonZeroBytes);
+            firstCameraFrameReported = true;
+        }
 
         {
             ScopedLVGLLock lv_lock;
 
-            /* Display this image on the LCD. */
-            write_to_lvgl_buf(inputImgCols, inputImgRows,
-                            currImage, &lvgl_image[0][0]);
+            /* The camera HAL supplies the unconverted RGB565 preview buffer. */
             lv_obj_invalidate(ScreenLayoutImageObject());
-
-            if (!run_requested()) {
-               lv_led_off(ScreenLayoutLEDObject());
-               return false;
-            }
-
-            lv_led_on(ScreenLayoutLEDObject());
 
             const size_t copySz = inputTensor->Bytes();
 
@@ -266,10 +268,8 @@ using namespace arm::app::object_detection;
             //lv_label_set_text_fmt(ScreenLayoutLabelObject(3), "Inferences / second: %.2f", (double) SystemCoreClock / (inf_loop_time_end - inf_loop_time_start));
 #endif
 
-            lv_label_set_text_fmt(ScreenLayoutLabelObject(0), "Faces Detected: %i", results.size());
-
 #ifdef POWER_MEASUREMENT_SUPPORT
-            ShowPowerMeasurement(powerOk ? &power : nullptr);
+            (void)powerOk;
 #endif
 
             /* Draw boxes. */
@@ -328,14 +328,20 @@ using namespace arm::app::object_detection;
                                    int imgInputCols, int imgInputRows)
     {
         lv_obj_t *frame = ScreenLayoutImageHolderObject();
-        float xScale = (float) lv_obj_get_content_width(frame) / imgInputCols;
-        float yScale = (float) lv_obj_get_content_height(frame) / imgInputRows;
+        /* Inference uses the centered 720x720 crop of the 1280x720 sensor
+         * frame. Preview uses the whole frame scaled to 320x240. */
+        const float sensorAspect = 16.0f / 9.0f;
+        const float xScale = (float) lv_obj_get_content_width(frame) /
+                             (sensorAspect * imgInputCols);
+        const float yScale = (float) lv_obj_get_content_height(frame) / imgInputRows;
+        const float xOffset = (sensorAspect - 1.0f) / (2.0f * sensorAspect) *
+                              lv_obj_get_content_width(frame);
 
         DeleteBoxes(frame);
 
         for (const auto& result: results) {
             CreateBox(frame,
-                      floor(result.m_x0 * xScale),
+                      floor(xOffset + result.m_x0 * xScale),
                       floor(result.m_y0 * yScale),
                       ceil(result.m_w * xScale),
                       ceil(result.m_h * yScale));

@@ -17,7 +17,7 @@ namespace alif {
 namespace app {
 
 void ScreenLayoutInit(const void *imgData, size_t imgSize, int imgWidth, int imgHeight, unsigned short imgZoom,
-                      bool hasProgressBar = false);
+                      bool hasProgressBar = false, bool fullScreenImage = false);
 
 lv_obj_t *ScreenLayoutImageObject();
 lv_obj_t *ScreenLayoutImageHolderObject();

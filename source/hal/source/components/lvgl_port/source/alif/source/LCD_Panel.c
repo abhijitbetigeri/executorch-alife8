@@ -24,7 +24,9 @@ static void (*tear_handler)(void);
 
 static void cdc_event_handler(uint32_t int_event)
 {
-    if (int_event == ARM_CDC_SCANLINE0_EVENT) {
+    /* The CDC200 may deliver a pending scanline event during startup, before
+     * lv_port has registered the tear handler. */
+    if (int_event == ARM_CDC_SCANLINE0_EVENT && tear_handler != NULL) {
         tear_handler();
     }
 }
