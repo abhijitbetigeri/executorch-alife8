@@ -1,0 +1,3 @@
+# Calibration frames can contain faces: keep them out of the public repo.
+*.png
+*.jpg

@@ -83,15 +83,18 @@ BlazeFace avg over 30 frames: pre X ms, NPU inference X ms, post X ms, frame-to-
 | Model size | 189 KB | (tflite) |
 | NPU SRAM (Vela) | 387 KB | |
 | MACs per frame | 31.7 M | |
-| Inference latency on DevKit-E8 | **not measured yet** | **not measured yet** |
-| Frame rate | **not measured yet** | **not measured yet** |
+| NPU inference (incl. int8 boundary) on DevKit-E8 | **4.61 ms** | not measured |
+| Pre-processing (RGB888 to float) | 1.08 ms | not measured |
+| Post-processing (decode + NMS) | 0.05 ms | not measured |
+| Frame-to-frame (camera + preview + model + LVGL) | 166 ms, **6.0 FPS** | not measured |
 
 ## Verification so far
 
 - Export: all operators delegated to the Ethos-U85; int8 detections match float on reference photos.
 - Post-processing: `BlazeFaceProcessing.cc` compiled on the host and compared with the reference PyTorch implementation on the same model outputs: same faces, boxes within 1 px.
 - Firmware: builds for DevKit-E8 (GCC 14.3.1, Release) on macOS arm64 to `build-blazeface/bin/mlek_alif_object_detection.axf`, with the ExecuTorch runtime, the Ethos-U backend, BlazeFace pre/post-processing and the 195 KB program linked in.
-- On the board: not yet run.
+- On the board (2026-10-17, DevKit-E8, M55 HP at 400 MHz): flashed with J-Link and running. Averages over 26 frames, read from the firmware's counters over J-Link: NPU inference 4.61 ms, pre-processing 1.08 ms, post-processing 0.05 ms, 166 ms frame-to-frame (6.0 FPS). The face model is 3.4% of the frame time; the rest is camera capture, the full-screen preview resize and LVGL drawing on the M55. Detection quality on live faces: not yet checked.
+- Console: this build prints on UART2 (`CONSOLE_UART` default), which the DevKit's PRG USB bridge does not carry. Configure with `-DCONSOLE_UART=4` and set SW4 to UART4 to see the timing lines on the USB serial port. Until then, read the counters with J-Link (`timingFrames`, `infCycles`, `preCycles`, `postCycles`, `frameCycles` in the map file).
 
 ### Firmware memory (Release build)
 

@@ -57,19 +57,27 @@ class FaceNHWC(nn.Module):
 
 
 def calibration_images(count: int) -> list:
-    """Frames from calib/ (any png/jpg, ideally captured on the board's camera), else noise."""
+    """Frames from calib/ (png/jpg captured on the board's camera), each in 4 rotations.
+
+    Calibrate on real frames: with noise only, int8 BlazeFace scores every frame ~0.59 and
+    finds no faces. The firmware runs the model on 4 rotations, so calibrate on them too.
+    `count` is the number of source frames; noise only fills in when calib/ is empty.
+    """
     from PIL import Image
 
     paths = sorted(glob.glob(os.path.join(HERE, "calib", "*.png")) +
                    glob.glob(os.path.join(HERE, "calib", "*.jpg")))
     imgs = []
     for path in paths[:count]:
-        img = Image.open(path).convert("RGB").resize((SIZE, SIZE))
-        imgs.append(torch.from_numpy(np.asarray(img).copy()).float().div(255).unsqueeze(0))
-    gen = torch.Generator().manual_seed(0)
-    while len(imgs) < count:
-        imgs.append(torch.rand(1, SIZE, SIZE, 3, generator=gen))
-    print(f"calibration: {min(len(paths), count)} real frames, {count - min(len(paths), count)} noise")
+        img = np.asarray(Image.open(path).convert("RGB").resize((SIZE, SIZE)))
+        for quarter_turns in range(4):  # clockwise, as RotateRgb888Square on the device
+            rotated = np.ascontiguousarray(np.rot90(img, -quarter_turns))
+            imgs.append(torch.from_numpy(rotated).float().div(255).unsqueeze(0))
+    if not imgs:
+        print("WARNING: calib/ is empty; calibrating on noise gives a model that finds no faces")
+        gen = torch.Generator().manual_seed(0)
+        imgs = [torch.rand(1, SIZE, SIZE, 3, generator=gen) for _ in range(count)]
+    print(f"calibration: {min(len(paths), count)} real frames x 4 rotations = {len(imgs)} samples")
     return imgs
 
 

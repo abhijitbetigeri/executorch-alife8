@@ -214,10 +214,14 @@ bool EtModel::Init(iface::MemoryRegion& computeBuffer,
     size_t methodMemBeforeMark = this->m_backendData.m_methodAllocPtr->UsedSizeCurrent();
 
     executorch::runtime::EventTracer* eventTracerPtr = nullptr;
-    static auto method =
+    /* Per-instance (not a function-level static): with a static, a second EtModel in the same
+     * image (e.g. a keyword spotter next to an image classifier) silently reused the first
+     * model's method. */
+    this->m_method = std::make_unique<executorch::runtime::Result<executorch::runtime::Method>>(
         this->m_backendData.m_program->get().load_method(this->m_backendData.m_methodName.c_str(),
                                                          this->m_backendData.m_memMgrPtr.get(),
-                                                         eventTracerPtr);
+                                                         eventTracerPtr));
+    auto& method = *this->m_method;
 
     if (!method.ok()) {
         info("Loading of method \"%s\" failed with status 0x%" PRIx32 "\n",
@@ -232,7 +236,7 @@ bool EtModel::Init(iface::MemoryRegion& computeBuffer,
      * by other member functions to get a reference to the method
      * (static/bss) we created above
      **/
-    this->m_fnGetMethod = [&]() { return std::ref(method.get()); };
+    this->m_fnGetMethod = [this]() { return std::ref(this->m_method->get()); };
 
     info("Method memory allocated: %zu bytes\n",
          this->m_backendData.m_methodAllocPtr->UsedSizeCurrent() - methodMemBeforeMark);

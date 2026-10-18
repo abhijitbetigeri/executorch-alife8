@@ -21,6 +21,7 @@
 #include "mlek/fwk/executorch/ExecuTorch.hpp"
 #include "mlek/fwk/iface/Model.hpp"
 #include <functional>
+#include <memory>
 
 namespace arm::app::fwk::et {
 
@@ -127,6 +128,7 @@ protected:
     virtual bool PrepareInputTensors();
 
 private:
+    std::unique_ptr<executorch::runtime::Result<executorch::runtime::Method>> m_method; /**< Loaded method, owned per model instance. */
     std::function<executorch::runtime::Method&()> m_fnGetMethod; /**< Gets the forward inference
                                                                       method. */
     EtBackendData m_backendData{}; /**< Backend data object */

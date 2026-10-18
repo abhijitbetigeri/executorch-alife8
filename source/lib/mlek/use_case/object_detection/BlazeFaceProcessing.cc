@@ -168,6 +168,95 @@ namespace {
         }
     }
 
+    void RotateRgb888Square(const uint8_t* src, uint8_t* dst, int size, int quarterTurns)
+    {
+        const int n = size;
+        for (int r = 0; r < n; ++r) {
+            for (int c = 0; c < n; ++c) {
+                int sr = r, sc = c; /* source pixel for destination (r, c) */
+                switch (quarterTurns & 3) {
+                case 1: sr = n - 1 - c; sc = r;         break; /* 90 clockwise  */
+                case 2: sr = n - 1 - r; sc = n - 1 - c; break; /* 180           */
+                case 3: sr = c;         sc = n - 1 - r; break; /* 270 clockwise */
+                default: break;
+                }
+                const uint8_t* s = &src[(sr * n + sc) * 3];
+                uint8_t* d       = &dst[(r * n + c) * 3];
+                d[0] = s[0];
+                d[1] = s[1];
+                d[2] = s[2];
+            }
+        }
+    }
+
+    object_detection::DetectionResult UnrotateBox(const object_detection::DetectionResult& b,
+                                                  int size,
+                                                  int quarterTurns)
+    {
+        const int n = size;
+        switch (quarterTurns & 3) {
+        case 1:
+            return {b.m_normalisedVal, b.m_y0, n - (b.m_x0 + b.m_w), b.m_h, b.m_w};
+        case 2:
+            return {b.m_normalisedVal, n - (b.m_x0 + b.m_w), n - (b.m_y0 + b.m_h), b.m_w, b.m_h};
+        case 3:
+            return {b.m_normalisedVal, n - (b.m_y0 + b.m_h), b.m_x0, b.m_h, b.m_w};
+        default:
+            return b;
+        }
+    }
+
+    void SuppressOverlaps(std::vector<object_detection::DetectionResult>& results,
+                          float iouThreshold)
+    {
+        std::sort(results.begin(), results.end(),
+                  [](const object_detection::DetectionResult& a,
+                     const object_detection::DetectionResult& b) {
+                      return a.m_normalisedVal > b.m_normalisedVal;
+                  });
+        /* Group every box with the best remaining one it overlaps, then report the
+         * score-weighted average box (MediaPipe-style) with the group's best score. */
+        auto toCandidate = [](const object_detection::DetectionResult& r) {
+            return Candidate{(float)r.m_y0, (float)r.m_x0, (float)(r.m_y0 + r.m_h),
+                             (float)(r.m_x0 + r.m_w), (float)r.m_normalisedVal};
+        };
+        std::vector<object_detection::DetectionResult> kept;
+        std::vector<bool> used(results.size(), false);
+        for (size_t i = 0; i < results.size(); ++i) {
+            if (used[i]) {
+                continue;
+            }
+            const Candidate best = toCandidate(results[i]);
+            float x0 = 0, y0 = 0, x1 = 0, y1 = 0, wsum = 0;
+            for (size_t j = i; j < results.size(); ++j) {
+                if (used[j]) {
+                    continue;
+                }
+                const Candidate c = toCandidate(results[j]);
+                if (j != i && Iou(best, c) <= iouThreshold) {
+                    continue;
+                }
+                used[j] = true;
+                x0 += c.xmin * c.score;
+                y0 += c.ymin * c.score;
+                x1 += c.xmax * c.score;
+                y1 += c.ymax * c.score;
+                wsum += c.score;
+            }
+            if (wsum <= 0.0f) {
+                kept.push_back(results[i]);
+                continue;
+            }
+            x0 /= wsum;
+            y0 /= wsum;
+            x1 /= wsum;
+            y1 /= wsum;
+            kept.emplace_back(results[i].m_normalisedVal, (int)(x0 + 0.5f), (int)(y0 + 0.5f),
+                              (int)(x1 - x0 + 0.5f), (int)(y1 - y0 + 0.5f));
+        }
+        results.swap(kept);
+    }
+
     BlazeFacePostProcess::BlazeFacePostProcess(
         std::shared_ptr<fwk::iface::TensorIface> scoresTensor,
         std::shared_ptr<fwk::iface::TensorIface> boxesTensor,

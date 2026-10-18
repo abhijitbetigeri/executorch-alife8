@@ -100,6 +100,36 @@ namespace app {
                          const BlazeFaceParams& params,
                          std::vector<object_detection::DetectionResult>& results);
 
+    /**
+     * BlazeFace (front model) only finds roughly upright faces. A camera looking down at a
+     * room sees faces at any rotation, so the handler runs the model on the frame rotated by
+     * 0, 90, 180 and 270 degrees and merges the boxes with these helpers.
+     */
+
+    /**
+     * @brief   Rotates a square packed RGB888 image clockwise by quarterTurns * 90 degrees.
+     * @param[in]   src           Source image, size x size x 3 bytes.
+     * @param[out]  dst           Destination, same size; must not alias src.
+     * @param[in]   size          Width and height in pixels.
+     * @param[in]   quarterTurns  0..3.
+     */
+    void RotateRgb888Square(const uint8_t* src, uint8_t* dst, int size, int quarterTurns);
+
+    /**
+     * @brief   Maps a box found in the image rotated by quarterTurns back to the original
+     *          (unrotated) image coordinates.
+     */
+    object_detection::DetectionResult UnrotateBox(const object_detection::DetectionResult& box,
+                                                  int size,
+                                                  int quarterTurns);
+
+    /**
+     * @brief   Keeps the highest-scoring box of every group overlapping by more than
+     *          iouThreshold (plain NMS), used to merge detections across rotations.
+     */
+    void SuppressOverlaps(std::vector<object_detection::DetectionResult>& results,
+                          float iouThreshold);
+
 } /* namespace app */
 } /* namespace arm */
 
