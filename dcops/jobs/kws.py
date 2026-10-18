@@ -185,6 +185,9 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--data", default="/tmp/speech_commands")
     ap.add_argument("--repo-out", default="abhijitbetigeri/dcops-e8-student")
+    ap.add_argument("--agc", type=float, default=0.0,
+                    help="probability of emulating the board's auto-gain (peak-normalise to 0.25-1.0) per clip (wave 2)")
+    ap.add_argument("--calib-n", type=int, default=128, help="int8 calibration clips saved for export")
     ap.add_argument("--no-push", action="store_true")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -214,7 +217,18 @@ def main():
         for _ in range(b):
             n = random.choice(noise_t); s = random.randint(0, len(n) - SR); nz.append(n[s:s + SR])
         nz = torch.stack(nz) * torch.empty(b, 1, device=dev).uniform_(0, 0.1)
-        return x + nz * mix[:, None]
+        x = x + nz * mix[:, None]
+        return agc(x, a.agc)
+
+    def agc(x, prob):
+        """The board's audio HAL scales each window toward full scale (up to +80 dB): quiet speech
+        and even silence arrive loud. Emulate that by peak-normalising a share of the clips."""
+        if prob <= 0: return x
+        peak = x.abs().amax(1, keepdim=True).clamp_min(1e-4)
+        target = torch.empty_like(peak).uniform_(0.25, 1.0)
+        gain = (target / peak).clamp(max=10 ** (80 / 20))
+        sel = (torch.rand_like(peak) < prob).float()
+        return x * (sel * gain + (1 - sel))
 
     model = DSCNN(a.ch).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=3e-3, weight_decay=1e-3)
@@ -222,11 +236,13 @@ def main():
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, 3e-3, total_steps=a.epochs * spe)
     Atr_t = torch.from_numpy(Atr)
 
-    def accuracy(split):
+    def accuracy(split, board=False):
         A, Y, _ = data[split]; model.eval(); pred = []
         with torch.no_grad():
             for i in range(0, len(Y), 1024):
-                pred.append(model(mfcc(torch.from_numpy(A[i:i + 1024]).to(dev))).argmax(1).cpu().numpy())
+                x = torch.from_numpy(A[i:i + 1024]).to(dev)
+                if board: x = agc(x, 1.0)  # every window peak-normalised, as on the board
+                pred.append(model(mfcc(x)).argmax(1).cpu().numpy())
         model.train(); pred = np.concatenate(pred)
         return float((pred == Y).mean()), pred
 
@@ -248,19 +264,23 @@ def main():
         if acc > best: best, best_state = acc, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
     test_acc, pred = accuracy("test")
+    test_acc_board, _ = accuracy("test", board=True)
+    log(f"test {test_acc:.4f}, test with board auto-gain {test_acc_board:.4f}")
     Yte = data["test"][1]
     per_class = {LABELS[c]: float((pred[Yte == c] == c).mean()) for c in range(len(LABELS)) if (Yte == c).any()}
     log(f"best val {best:.4f}, test {test_acc:.4f}")
 
     out = f"/tmp/kws_{a.name}"; os.makedirs(out, exist_ok=True)
     torch.save(best_state, f"{out}/student.pt")
-    ci = np.random.default_rng(1).choice(len(Yte), 128, replace=False)
+    ci = np.random.default_rng(1).choice(len(Yte), min(a.calib_n, len(Yte)), replace=False)
     with torch.no_grad():
-        feats = mfcc(torch.from_numpy(data["test"][0][ci]).to(dev)).cpu().numpy()
+        xa = torch.from_numpy(data["test"][0][ci]).to(dev)
+        if a.agc > 0: xa = agc(xa, 1.0)  # calibrate on board-like levels
+        feats = mfcc(xa).cpu().numpy()
     np.savez_compressed(f"{out}/calib.npz", mfcc=feats, labels=Yte[ci])
     open(f"{out}/labels.txt", "w").write("\n".join(LABELS) + "\n")
     json.dump({"name": a.name, "args": vars(a), "arch": {"ch": a.ch, "blocks": 4}, "val_acc": best,
-               "test_acc": test_acc, "per_class_test_acc": per_class, "history": hist,
+               "test_acc": test_acc, "test_acc_board_agc": test_acc_board, "per_class_test_acc": per_class, "history": hist,
                "params": sum(p.numel() for p in model.parameters()),
                "mfcc": {"sr": SR, "frame": FRAME, "stride": STRIDE, "nfft": NFFT, "nmel": NMEL,
                         "nmfcc": NMFCC, "frames": NFRAMES, "mel_hz": [20, 4000], "htk": True}},

@@ -116,6 +116,9 @@ def main():
     ap.add_argument("--repo-out", default="abhijitbetigeri/dcops-e8-student")
     ap.add_argument("--crops", default=None, help="local crops.npz instead of the Hub (smoke tests)")
     ap.add_argument("--wait-min", type=int, default=120)
+    ap.add_argument("--meta", default=None, help="meta json next to --crops (default meta.json)")
+    ap.add_argument("--mixup", type=float, default=0.0, help="probability of mixup per batch (wave 2)")
+    ap.add_argument("--ema", type=float, default=0.0, help="EMA decay of weights, e.g. 0.999 (wave 2)")
     ap.add_argument("--no-push", action="store_true")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
@@ -124,7 +127,8 @@ def main():
     from huggingface_hub import HfApi, hf_hub_download
     api = HfApi()
     if a.crops:
-        crops_path, meta = a.crops, json.load(open(os.path.join(os.path.dirname(a.crops), "meta.json")))
+        crops_path = a.crops
+        meta = json.load(open(a.meta or os.path.join(os.path.dirname(a.crops), "meta.json")))
     else:
         t0 = time.time()
         while True:  # the teacher job writes meta.json last
@@ -138,14 +142,22 @@ def main():
         crops_path = hf_hub_download(a.repo_in, "crops.npz", repo_type="dataset")
     d = np.load(crops_path)
     X, Y, S, T = d["images"], d["labels"], d["split"], d["teacher_logits"]
+    KIND = d["kind"] if "kind" in d.files else np.array(["auto"] * len(Y))
     classes = meta["classes"]; nc = len(classes)
     tr, va = np.where(S == "train")[0], np.where(S == "val")[0]
-    log(f"{len(Y)} crops ({len(tr)} train / {len(va)} val), {nc} classes; teacher val acc {meta['teacher_val_acc']:.3f}")
+    hv = KIND[va] == "human"  # human-labelled validation crops (wave 2): the trustworthy metric
+    log(f"{len(Y)} crops ({len(tr)} train / {len(va)} val, {int(hv.sum())} human-labelled), {nc} classes; "
+        f"teacher val acc {meta['teacher_val_acc']:.3f}")
 
     counts = np.bincount(Y[tr], minlength=nc).astype(float)
     p = 1.0 / np.maximum(counts[Y[tr]], 1); p /= p.sum()  # class-balanced sampling
     Xt, Tt = torch.from_numpy(X), torch.from_numpy(T)
     model = StudentNHWC(nc, a.res).to(dev)
+    ema = None
+    if a.ema > 0:
+        import copy
+        ema = copy.deepcopy(model).eval()
+        for q in ema.parameters(): q.requires_grad_(False)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0.02)
     spe = max(1, len(tr) // a.batch)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, a.lr, total_steps=a.epochs * spe, pct_start=0.1)
@@ -160,6 +172,7 @@ def main():
         return x.permute(0, 2, 3, 1).contiguous()  # NHWC, as on the board
 
     def evaluate(aug=False):
+        net = ema if ema is not None else model
         model.eval(); pred = []
         with torch.no_grad():
             for i in range(0, len(va), 128):
@@ -167,36 +180,57 @@ def main():
                 x = prep(idx, False)
                 if aug:  # the same frames as the board camera would deliver them
                     x = board_camera_aug(x.permute(0, 3, 1, 2)).permute(0, 2, 3, 1).contiguous()
-                pred.append(model(x).argmax(1).cpu().numpy())
+                pred.append(net(x).argmax(1).cpu().numpy())
         model.train()
         pred = np.concatenate(pred) if pred else np.array([])
-        return pred, float((pred == Y[va]).mean()) if len(va) else 0.0
+        if len(va) == 0: return pred, 0.0
+        if hv.any():  # wave 2: score on the human-labelled split only
+            return pred, float((pred[hv] == Y[va][hv]).mean())
+        return pred, float((pred == Y[va]).mean())
 
     rng = np.random.default_rng(0)
     best, best_state, hist = -1.0, None, []
     for ep in range(a.epochs):
         for _ in range(spe):
             idx = rng.choice(tr, a.batch, p=p)
-            logits = model(prep(idx, True))
+            x = prep(idx, True)
             y = torch.from_numpy(Y[idx]).to(dev)
-            loss = F.cross_entropy(logits, y, label_smoothing=0.1)
+            t = Tt[idx].to(dev)
+            lam, perm = 1.0, None
+            if a.mixup > 0 and random.random() < a.mixup:  # mix images and both targets the same way
+                lam = float(np.random.beta(0.4, 0.4)); perm = torch.randperm(x.shape[0], device=dev)
+                x = lam * x + (1 - lam) * x[perm]
+            logits = model(x)
+            ce = F.cross_entropy(logits, y, label_smoothing=0.1)
+            if perm is not None:
+                ce = lam * ce + (1 - lam) * F.cross_entropy(logits, y[perm], label_smoothing=0.1)
+            loss = ce
             if a.kd_alpha > 0:
-                t = Tt[idx].to(dev)
-                kd = F.kl_div(F.log_softmax(logits / a.temp, 1), F.softmax(t / a.temp, 1), reduction="batchmean")
-                loss = (1 - a.kd_alpha) * loss + a.kd_alpha * a.temp ** 2 * kd
+                pt = F.softmax(t / a.temp, 1)
+                if perm is not None: pt = lam * pt + (1 - lam) * pt[perm]
+                kd = F.kl_div(F.log_softmax(logits / a.temp, 1), pt, reduction="batchmean")
+                loss = (1 - a.kd_alpha) * ce + a.kd_alpha * a.temp ** 2 * kd
             opt.zero_grad(); loss.backward(); opt.step(); sched.step()
+            if ema is not None:
+                with torch.no_grad():
+                    for pe, pm in zip(ema.state_dict().values(), model.state_dict().values()):
+                        if pe.dtype.is_floating_point: pe.mul_(a.ema).add_(pm.detach(), alpha=1 - a.ema)
+                        else: pe.copy_(pm)
         _, acc = evaluate()
         _, acc_cam = evaluate(aug=True)
         hist.append({"epoch": ep + 1, "loss": float(loss.item()), "val_acc": acc, "val_acc_board_sim": acc_cam})
         log(f"epoch {ep+1}/{a.epochs} loss {loss.item():.3f} val {acc:.3f} val(board-sim) {acc_cam:.3f}")
         score = 0.5 * acc + 0.5 * acc_cam
         if score > best:
-            best, best_state = score, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            src = ema if ema is not None else model
+            best, best_state = score, {k: v.detach().cpu().clone() for k, v in src.state_dict().items()}
 
     model.load_state_dict(best_state)
+    if ema is not None: ema.load_state_dict(best_state)
     pred, acc = evaluate(); _, acc_cam = evaluate(aug=True)
     conf = np.zeros((nc, nc), int)
-    for t_, p_ in zip(Y[va], pred): conf[t_, p_] += 1
+    sel = hv if hv.any() else np.ones(len(va), bool)
+    for t_, p_ in zip(Y[va][sel], pred[sel]): conf[t_, p_] += 1
     per_class = {classes[c]: (float(conf[c, c] / conf[c].sum()) if conf[c].sum() else None) for c in range(nc)}
     log(f"best: val acc {acc:.3f}, board-sim {acc_cam:.3f}")
 
@@ -208,7 +242,8 @@ def main():
     open(f"{out}/labels.txt", "w").write("\n".join(classes) + "\n")
     metrics = {"name": a.name, "args": vars(a), "val_acc": acc, "val_acc_board_sim": acc_cam,
                "per_class_acc": per_class, "confusion": conf.tolist(), "history": hist,
-               "teacher_val_acc": meta["teacher_val_acc"], "n_train": int(len(tr)), "n_val": int(len(va))}
+               "teacher_val_acc": meta.get("teacher_human_val_acc", meta["teacher_val_acc"]),
+               "metric": "human-labelled val" if hv.any() else "val (auto labels)", "n_train": int(len(tr)), "n_val": int(len(va))}
     json.dump(metrics, open(f"{out}/metrics.json", "w"), indent=2)
     if a.no_push:
         log("no push; outputs in", out); return
