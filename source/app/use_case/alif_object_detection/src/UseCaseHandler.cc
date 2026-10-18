@@ -69,6 +69,9 @@ bool firstCameraFrameReported = false;
 #ifndef CLS_EMA_ALPHA
 #define CLS_EMA_ALPHA 0.3f
 #endif
+#ifndef CLS_ALLOWED_MASK
+#define CLS_ALLOWED_MASK 0xFFFFFFFFu /* bit i set = class i may be shown */
+#endif
 #ifndef CLS_CONF_THRESHOLD
 #define CLS_CONF_THRESHOLD 0.5f
 #endif
@@ -676,13 +679,20 @@ namespace app {
                 const int n = std::min({static_cast<int>(outputTensor0->GetNumElements()),
                                         object_detection::g_numClassLabels, kMaxClasses});
                 /* Softmax of this frame, then the EMA (seeded with the first frame). */
+                /* Classes outside CLS_ALLOWED_MASK (bit i = class i) get zero probability,
+                 * so the demo can be limited to the classes the board camera tells apart. */
+                auto allowed = [](int i) {
+                    return i >= 32 || ((CLS_ALLOWED_MASK >> i) & 1u) != 0u;
+                };
                 float maxLogit = -1e30f;
                 for (int i = 0; i < n; ++i) {
-                    maxLogit = std::max(maxLogit, logits[i]);
+                    if (allowed(i)) {
+                        maxLogit = std::max(maxLogit, logits[i]);
+                    }
                 }
                 float sum = 0.0f;
                 for (int i = 0; i < n; ++i) {
-                    currProbs[i] = std::exp(logits[i] - maxLogit);
+                    currProbs[i] = allowed(i) ? std::exp(logits[i] - maxLogit) : 0.0f;
                     sum += currProbs[i];
                 }
                 const float invSum = sum > 0.0f ? 1.0f / sum : 0.0f;

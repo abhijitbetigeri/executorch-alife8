@@ -55,7 +55,7 @@ def tool(name: str) -> str:
 
 def mem32_cmd(addr: int, words: int) -> str:
     """:returns: A Commander ``mem32`` line (Commander parses numbers as hex)."""
-    return f"mem32 0x{addr:08X}, 0x{max(words, 1):X}"
+    return f"mem32 0x{addr:08X} 0x{max(words, 1):X}"  # space-separated: this J-Link rejects the comma form
 
 
 def savebin_cmd(path: str, addr: int, nbytes: int) -> str:

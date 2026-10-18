@@ -93,6 +93,10 @@ if (${ML_FRAMEWORK} STREQUAL "ExecuTorch")
         0.5
         STRING)
 
+    USER_OPTION(${use_case}_CLS_ALLOWED_MASK "CLASSIFY: bitmask of classes that may be shown (bit i = class i)"
+        0xFFFFFFFF
+        STRING)
+
     USER_OPTION(${use_case}_CLS_BACKGROUND_LABEL "CLASSIFY: label treated as 'nothing to identify'"
         "background"
         STRING)
@@ -114,6 +118,7 @@ if (${ML_FRAMEWORK} STREQUAL "ExecuTorch")
         ET_TASK_CLASSIFY=${_ET_TASK_CLASSIFY}
         CLS_EMA_ALPHA=${${use_case}_CLS_EMA_ALPHA}f
         CLS_CONF_THRESHOLD=${${use_case}_CLS_CONF_THRESHOLD}f
+        CLS_ALLOWED_MASK=${${use_case}_CLS_ALLOWED_MASK}u
     )
 
     set(EXTRA_MODEL_CODE

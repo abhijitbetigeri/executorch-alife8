@@ -46,7 +46,7 @@ class Mem32Parsing(unittest.TestCase):
 
     def test_trailing_space_and_noise(self):
         """Commander echoes, trailing spaces and lowercase hex."""
-        text = "J-Link>mem32 0x200242D4, 0x2\n200242d4 = 000000a9 0000007e \nJ-Link>exit\n"
+        text = "J-Link>mem32 0x200242D4 0x2\n200242d4 = 000000a9 0000007e \nJ-Link>exit\n"
         self.assertEqual(jlink.parse_mem32(text), [(0x200242D4, [0xA9, 0x7E])])
 
     def test_multi_line_request(self):
@@ -94,9 +94,11 @@ class Mem32Parsing(unittest.TestCase):
 
     def test_script_wrapping(self):
         """connect/exit are added once."""
-        s = jlink.JLink(dry_run=True).script(["mem32 0x0, 0x1"])
-        self.assertEqual(s, "connect\nmem32 0x0, 0x1\nexit\n")
-        self.assertEqual(jlink.mem32_cmd(0x200242D4, 10), "mem32 0x200242D4, 0xA")
+        s = jlink.JLink(dry_run=True).script(["mem32 0x0 0x1"])
+        self.assertEqual(s, "connect\nmem32 0x0 0x1\nexit\n")
+        self.assertEqual(jlink.mem32_cmd(0x200242D4, 10), "mem32 0x200242D4 0xA")
+        self.assertEqual(jlink.savebin_cmd("/tmp/f.bin", 0x80200000, 0x5000),
+                         "savebin /tmp/f.bin 0x80200000 0x5000")
 
     def test_short_name(self):
         """C++ noise is dropped."""

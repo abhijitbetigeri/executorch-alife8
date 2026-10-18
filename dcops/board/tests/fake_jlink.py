@@ -4,9 +4,9 @@
 """Stand-in for JLinkExe used by the offline tests (JLINK=<this file>). Never touches hardware.
 
 Reads the -CommanderScript file, logs it to $FAKE_JLINK_LOG, and answers:
-- ``savebin path, addr, n`` -> writes n bytes from $FAKE_JLINK_BACKUP (partition image at
+- ``savebin path addr n`` -> writes n bytes from $FAKE_JLINK_BACKUP (partition image at
   0x80200000), optionally with byte $FAKE_JLINK_CORRUPT (hex address) flipped;
-- ``mem32 addr, n`` -> prints n zero words in Commander's format;
+- ``mem32 addr n`` -> prints n zero words in Commander's format;
 - ``loadfile`` -> prints a success line.
 """
 import os
@@ -24,7 +24,7 @@ print("SEGGER J-Link Commander (FAKE)")
 for c in cmds:
     print(f"J-Link>{c}")
     op = c.split()[0].lower()
-    parts = [p.strip() for p in c[len(op):].split(",")]
+    parts = c[len(op):].replace(",", " ").split()  # accepts space- (real J-Link) or comma-separated args
     if op == "savebin":
         path, addr, n = parts[0], int(parts[1], 16), int(parts[2], 16)
         with open(os.environ["FAKE_JLINK_BACKUP"], "rb") as f:

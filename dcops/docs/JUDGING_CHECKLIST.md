@@ -1,37 +1,118 @@
 # DC-Ops on E8: judging checklist (Sat Oct 18, deadline 5:00 pm PDT)
 
-The owners are placeholders. Assign them at the morning stand-up. The times are estimates.
+One section per criterion: the evidence we have, where it lives, and what is still missing.
 
-| Criterion (pts) | Evidence we have | Still needed | Owner | Est. |
-|---|---|---|---|---|
-| Functionality & reliability (20) | Classifier path runs on the board at about 6 FPS. Board top-3 matches the PC int8 sim. BlazeFace runs on the board. A flash guard prevents the boot brick. | DC-Ops student flashed and identifying real/laptop images. A 10-minute soak run without hangs. A backup video. A power-cycle step in the demo. | firmware | 2–3 h |
-| Performance & efficiency (20) | BlazeFace: 4.61 ms NPU, 1.08 ms pre, 0.05 ms post, 166 ms/frame (6.0 FPS). MRAM/SRAM from the ELF. | Classifier NPU/pre/post ms for the DC-Ops build. KWS latency. **Power** (mW, idle vs inference: the `alif_object_detection_power` use case or a USB meter). One before/after optimisation (e.g. 128 vs 160 px, or smaller preview). | perf | 2 h |
-| Effective use of E8 hardware (15) | U85 runs 100% of ops for both models. Camera DMA, CDC200/DSI and LVGL in use. Memory map and partition analysis done. Placement table written. | Confirm the KWS placement. Optional: KWS on HE + U55 (high risk, skip unless the rest is done). A one-line rationale per placement in the README. | firmware/voice | 0.5 h docs; HE port 4 h+ |
-| Multimodal & sensor integration (15) | Camera + LCD working. KWS trained on the board's exact MFCC. | **Mic -> MFCC -> KWS running on the board and driving the UI.** This is the biggest open item. Keyword-to-action mapping documented. | voice | 3–4 h |
-| Innovation & use-case value (10) | Air-gapped DC use case, info cards from DC-Ops, a clear "why a microcontroller" story. | Info card on the LCD (not just a label). One sentence on deployment constraints in the pitch. | firmware-ui | 2 h |
-| Technical ambition (10) | YOLO -> ConvNeXt -> MobileNetV2 distillation. Board-camera domain augmentation. AST -> DS-CNN distillation. Two models. Ablations queued. | Ablation numbers in `REPORT.md` (KD vs no KD, aug vs no aug). Teacher accuracy. | ML | 0.5 h (if training finished) |
-| Engineering quality & demo (10) | Docs in `dcops/docs/`, guard script, reproducible jobs and export scripts. | Public repo, commit tag, README section merged, a rehearsed 2–3 min demo, prior-work disclosure in the README. | all | 1.5 h |
+## Functionality & reliability (20)
+
+Evidence:
+- `build-fusion` runs on the board: camera -> NPU classifier -> info card, and mic -> NPU KWS -> checklist, in one HP image.
+- Board top-3 matches PC top-3 on the same captured frame (background 66.4% vs 66.4%).
+- Demo mask, held-out board frames, cutoff 0.5: 73% correct, 6% wrong, rest blank; 0% of background frames labelled.
+- Clean held-out photos (5 classes, PC): 25/28.
+- EMA (alpha 0.3) + confidence gate 0.5: blank instead of flicker.
+- Known camera hang after J-Link reset is handled: power-cycle step; LED1 blinks if camera init fails.
+- Flash guard refuses images past 0x80578000.
+
+Gaps:
+- Backup video: `TODO(record)`.
+- A long soak run without hangs: not done.
+
+## Performance & efficiency (20)
+
+Evidence:
+
+| Metric | Value |
+|---|---|
+| Vision NPU inference | 7.9–8.0 ms |
+| Preprocessing (M55) | 1.75 ms |
+| Full frame | 255–287 ms (3.5–3.9 FPS); LCD footer 274 ms / 3.6 FPS |
+| KWS | MFCC 3.3–4.0 ms (M55) + DS-CNN 0.34 ms (NPU), 2 strides/s |
+| Vision .pte / KWS .pte | 2301 KB / 93 KB |
+| int8 vs float top-1 | 98.4% agreement |
+| MRAM headroom | ~195 KB |
+
+- NPU is ~3% of the frame; bottleneck identified (camera, LCD/LVGL, UART logging).
+- Optimisation done: per-frame UART printing removed from the classify path.
+
+Gaps:
+- FPS after the UART change: `TODO(measure)`. Read the LCD footer on the flashed build.
+- Power: `TODO(measure)`. Not measured; needs a USB power meter or the power use case.
+
+## Effective use of hardware (15)
+
+Evidence:
+- Both models on the Ethos-U85-256, 100% of graph ops; only quantize/dequantize on the M55.
+- M55 HP does crop/resize, MFCC, softmax/EMA, UI.
+- Camera MIPI/CPI + DMA, PDM mic, LCD, MRAM for models and info cards.
+- Memory map and boot-table guard (`ARCHITECTURE.md`).
+- Placement table with measured costs (`ARCHITECTURE.md`, `DEVPOST.md`).
+
+Gaps:
+- HE core (M55 + Ethos-U55) unused. KWS on HE + U55 is documented as the next step, not built.
+
+## Multimodal & sensor integration (15)
+
+Evidence:
+- Camera and microphone run concurrently in one image, two ExecuTorch programs (per-instance `EtModel`).
+- Fusion: `go` only works when vision is confident; `no` on item 1 overrides vision.
+- KWS trained on the firmware's exact MFCC with board AGC emulated: 94.66% test, 94.70% with AGC.
+- Keyword-to-action mapping documented (`DEVPOST.md`, `ARCHITECTURE.md`).
+
+Gaps:
+- None open beyond the demo itself working in a noisy room (fallback in `DEMO_SCRIPT.md`).
+
+## Innovation & use-case value (10)
+
+Evidence:
+- Air-gapped data-center use case: no phones, no cloud.
+- Info cards plus a hands-free inspection checklist.
+- No-network board-camera data collection (clock-synced slideshow).
+- Future work scoped with numbers: component-level parts need a detector or tiled inference (resistor ~2 px at 160 px input).
+
+Gaps:
+- None.
+
+## Technical ambition & integration (10)
+
+Evidence:
+- YOLOv8n-seg -> ConvNeXt teachers (97.2%) -> MobileNetV2 student (0.912 val / 0.913 board-sim).
+- Ablations: no board-camera aug 0.758, no KD 0.804 on board-sim. Resolution sweep 128/160/192 px.
+- Board-camera fine-tune: held-out board 35.5% -> 73.0%.
+- AST -> DS-CNN distillation.
+- MLEK runtime change for two models; Vela miscompile found and worked around (`docs/blazeface-vela-bug.md`).
+
+Gaps:
+- None.
+
+## Engineering quality & demo (10)
+
+Evidence:
+- Public repo: https://github.com/abhijitbetigeri/executorch-alife8 (fork of npow/alif-mlek-yolo; prior work disclosed).
+- Scripts: `dcops/jobs/`, `dcops/colab/`, `dcops/export/`, `dcops/board_capture/`, `scripts/alif/build_dcops_demo.sh`, guarded `scripts/alif/flash_e8_hp.sh`.
+- Docs: `DEVPOST.md`, `ARCHITECTURE.md`, `RESULTS.md`, `README_SECTION.md`, `DEMO_SCRIPT.md`.
+- 2-minute run sheet with fallbacks.
+
+Gaps:
+- Judged tag: `TODO(tag)`, created by a human after review.
+- Team names: `TODO(names)`.
+- Demo rehearsed twice: not yet.
 
 ## Submission form must-haves
 
-- [ ] Public repo URL. `TODO`: confirm that nothing private, such as HF tokens or the private Hub repo
-      names, is required to build. Note that the student/crops Hub repos are private: make them public
-      or ship the `.pte` in the repo.
-- [ ] Commit hash / tag of the judged build (`git tag dcops-e8-judged`), done by a human, after review.
-- [ ] README with build / export / flash / run (`README_SECTION.md`).
-- [ ] Architecture and workload placement (`ARCHITECTURE.md`, `DEVPOST.md`).
-- [ ] Perf: latency, memory, power. Replace every `TODO(measure)`.
-- [ ] Disclosure of reuse from github.com/abhijitbetigeri/DC-Ops.
-- [ ] Demo video (optional but a strong fallback).
+- [x] Public repo URL.
+- [ ] Commit hash / tag of the judged build: `TODO(tag)`.
+- [x] README with build / export / flash / run (`README_SECTION.md`).
+- [x] Architecture and workload placement (`ARCHITECTURE.md`, `DEVPOST.md`).
+- [ ] Perf: latency and memory done; FPS after UART change and power are `TODO(measure)`.
+- [x] Disclosure of reuse (DC-Ops phone project, npow/alif-mlek-yolo camera pipeline).
+- [ ] Demo video: `TODO(record)`.
+- [ ] Team names: `TODO(names)`.
 
-## Suggested timeline (Oct 18)
+## Remaining timeline (Oct 18)
 
 | Time | Milestone |
 |---|---|
-| 08:00 | Read `REPORT.md`, pick the student (160 px KD unless board-sim acc says otherwise), export and check the .pte fits under 0x80578000 |
-| 09:30 | DC-Ops build flashed, power-cycled, sanity check on laptop photos |
-| 11:00 | KWS on board, or a decision to cut it (call it at noon at the latest) |
-| 12:00 | Perf and power measured, numbers filled in |
-| 13:30 | Info card UI final; record the backup video |
+| 13:30 | Read FPS from the LCD footer on the current build; fill it in |
+| 14:00 | Record the backup video |
 | 15:00 | Docs/README merged, tag created, Devpost draft complete |
 | 16:00 | Rehearse the demo twice; submit by **16:30** (30 min buffer) |

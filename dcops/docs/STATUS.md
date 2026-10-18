@@ -1,30 +1,29 @@
-# DC-Ops on E8: status (morning of 2026-10-18)
+# DC-Ops on E8: status (13:15, 2026-10-18)
 
-Everything that can run without the board is done; the repo is pushed. What remains needs the board.
+The demo works on the board. What remains is one FPS reading, the video, the tag and the submission.
 
 ## Done
-- **Models** (in `resources/`, all operators on the Ethos-U85):
-  - Vision: MobileNetV2 `v2_r160_kd`, 91.2 % on the human-labelled validation split, 0.913 on simulated board-camera frames; 2.3 MB.
-  - Voice: DS-CNN `dscnn_m_agc`, 94.7 % test accuracy, unchanged with the board's auto-gain simulated; 93 KB.
-- **Firmware** (`build-fusion`): camera classifier + voice in one Cortex-M55 HP image, 194 KB below the boot-table guard. Voice drives the scanner ("go" holds the card and opens a checklist, "stop" resumes, "up"/"down"/"yes"/"no" work the checklist); info cards and a performance footer on the LCD.
-- **Board tools** (`dcops/board/`): guarded flash with a boot-area check, J-Link measurement, board-vs-PC snapshots; tested offline.
-- **BlazeFace bug**: root cause is a Vela compiler miscompile; workaround committed and verified on a Corstone-320 FVP (`docs/blazeface-vela-bug.md`).
-- **Docs** (`dcops/docs/`): Devpost text, architecture, demo script, judging checklist, results, recovery steps.
+- **Firmware on the board** (`build-fusion`, one HP image): camera classifier + info cards + voice checklist, both models on the Ethos-U85. Image ends at 0x805473C4, ~195 KB below the 0x80578000 guard.
+- **Vision model** `v3_board_ft` (deployed): board-camera fine-tune of `v2_r160_kd`. Held-out board frames, all classes: 35.5 % -> 73.0 %. .pte 2301 KB, int8/float agreement 98.4 %.
+- **Demo mask** `CLS_ALLOWED_MASK=0x13250` (power shelf, network port, fan, power connector, drive bay + background), cutoff 0.5: 73 % correct, 6 % wrong, rest blank; background never labelled.
+- **Voice** `dscnn_m_agc`: 94.66 % test (94.70 % with board AGC), 93 KB. `go` / `yes` / `no` / `up` / `down` / `stop` drive the checklist.
+- **On-board correctness**: board top-3 = PC top-3 on the same frame (background 66.4 % vs 66.4 %).
+- **Measured**: vision NPU 7.9–8.0 ms, preprocessing 1.75 ms, frame 255–287 ms (3.5–3.9 FPS), KWS MFCC 3.3–4.0 ms + DS-CNN 0.34 ms. (With the earlier v2 model, same architecture.)
+- **Optimisation**: per-frame UART result/profiler printing removed from the classify path; flashed.
+- **Vela bug**: miscompile found and worked around (`docs/blazeface-vela-bug.md`).
+- **Docs** (`dcops/docs/`): Devpost text, architecture, results, demo run sheet, judging checklist, README section.
 
-## To do (needs the board)
-1. Flash `build-fusion` and power-cycle. Nothing from the overnight run has run on the board yet.
-2. Verify on hardware: the camera classifier on real components, the mic and keywords, readability of the info card and checklist.
-3. Measure NPU latency, FPS with voice running, and memory; fill the placeholders in `DEVPOST.md`.
-4. Fill in the measured numbers, tag the release commit, record a backup demo video, and submit on Devpost before **5:00 pm PDT, Oct 18**.
+## To do
+1. Read FPS from the LCD footer on the current build: `TODO(measure)` in `DEVPOST.md`, `RESULTS.md`, `ARCHITECTURE.md`, `DEMO_SCRIPT.md`, `JUDGING_CHECKLIST.md`.
+2. Record the backup demo video: `TODO(record)`.
+3. Commit `scripts/alif/build_dcops_demo.sh` (being added) and the docs; tag the judged commit: `TODO(tag)`.
+4. Team names on Devpost: `TODO(names)`.
+5. Rehearse the 2-minute demo twice; submit before **5:00 pm PDT** (target 16:30).
 
-## Open question
-Board-camera accuracy will be lower than the PC numbers. If it is weak on the actual demo objects, capture a few minutes of board-camera frames of those objects and run a quick fine-tune (about 30 minutes on Colab).
+## Not doing
+- Power measurement: not measured (`TODO(measure)`); say so if asked.
+- KWS on the HE core + Ethos-U55: documented next step, not built.
 
-## Start here
-```sh
-cd ~/projects/arm-executorch-hack/executorch-alife8 && source ../env.sh
-dcops/board/flash.sh build-fusion/bin/mlek_alif_object_detection.axf   # then unplug/replug the board
-python3 dcops/board/measure.py build-fusion/bin/mlek_alif_object_detection.axf --seconds 20
-dcops/.venv-train/bin/python dcops/board/snapshot.py build-fusion/bin/mlek_alif_object_detection.axf --lcd
-```
-If keywords never register, rebuild with `-DTARGET_MICS=I2S`.
+## Reminders
+- After every flash, power-cycle (unplug PRG USB about 10 s). LED1 blinking = camera init failed.
+- Flash only with `scripts/alif/flash_e8_hp.sh`; it refuses images past 0x80578000.

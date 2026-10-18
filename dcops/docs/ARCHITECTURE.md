@@ -1,72 +1,128 @@
 # DC-Ops on E8: architecture
 
-`TODO(...)` marks anything not yet measured or not yet in the judged build.
+`TODO(measure)` marks anything not yet measured.
 
-## 1. On-device pipeline
+## 1. On-device pipeline (one HP image, `build-fusion`)
 
 ```mermaid
 flowchart LR
   subgraph Sensors
-    CAM[MT9M114 camera<br/>1280x720 RGB565]
-    MIC[PDM/I2S mic<br/>16 kHz]
+    CAM[MT9M114 camera]
+    MIC[PDM microphone<br/>16 kHz]
   end
   subgraph HP["Cortex-M55 HP @ 400 MHz"]
-    PRE[Rotate 180°, full-screen preview,<br/>centre-crop + resize to 160x160 RGB888]
-    CVT[RGB888 -> float NHWC 0..1]
+    PRE[Crop + resize to 160x160 RGB<br/>1.75 ms]
+    CVT[float NHWC 0..1<br/>normalisation folded into model]
     Q[int8 quantize]
     DQ[int8 dequantize]
-    POST[softmax top-3<br/>+ info-card lookup]
-    UI[LVGL UI state machine]
-    MFCC[MFCC 49x10<br/>MLEK Mfcc.cc]
+    POST[softmax + EMA alpha 0.3<br/>confidence gate 0.5]
+    CARD[info card lookup<br/>title, summary, specs]
+    UI[LVGL UI + voice state machine]
+    MFCC[MFCC 49x10, MLEK Mfcc.cc<br/>3.3-4.0 ms]
+    KTH[threshold 0.7]
   end
-  subgraph NPU["Ethos-U85-256"]
-    CLS[MobileNetV2 student<br/>all ops delegated]
-    KWS[DS-CNN keyword spotter<br/>TODO confirm placement]
+  subgraph NPU["Ethos-U85-256 (attached to HP)"]
+    CLS[MobileNetV2 student<br/>100% of ops, 7.9-8.0 ms]
+    KWS[DS-CNN keyword spotter<br/>0.34 ms, every 0.5 s]
   end
-  CAM -- MIPI CSI / CPI + DMA --> PRE --> CVT --> Q --> CLS --> DQ --> POST --> UI
-  MIC -- DMA --> MFCC --> KWS -- keyword --> UI
-  UI -- CDC200 + MIPI DSI --> LCD[ILI9806E 480x800]
-  DB[(dc_components.json<br/>info cards, in MRAM)] --> POST
+  CAM -- MIPI CSI / CPI + DMA --> PRE --> CVT --> Q --> CLS --> DQ --> POST --> CARD --> UI
+  MIC -- background capture --> MFCC --> KWS --> KTH -- keyword --> UI
+  UI --> LCD[LCD]
+  DB[(dc_components.json<br/>info cards, in MRAM)] --> CARD
 ```
 
-Placement rationale: the dense conv graphs go to the NPU. The camera geometry, softmax, UI and
-int8 boundary stay on the M55. On the measured BlazeFace build, NPU inference is 4.61 ms out of a
-166 ms frame, about 3.4%. The frame rate is set by the camera, preview and LVGL work on the M55,
-not by the model. The M55 HE + Ethos-U55 is free and is the planned home for an always-on KWS.
-It is not built.
+Two ExecuTorch 1.1.0 programs share one runtime. MLEK's `EtModel` was changed from a static
+method to a per-instance method (`source/lib/mlek/fwk/executorch/EtModel.cc/.hpp`) so both can be
+loaded at once.
+
+### Workload placement
+
+| Workload | Runs on | Measured |
+|---|---|---|
+| Camera capture | MIPI CSI + CPI + DMA | dominates the frame with LCD/LVGL |
+| Crop / resize, float NHWC | M55 HP | 1.75 ms |
+| int8 quantize / dequantize | M55 HP | only CPU ops in either graph |
+| Vision classifier | Ethos-U85-256 | 7.9–8.0 ms |
+| Softmax, EMA, gate, info card | M55 HP | trivial |
+| MFCC 49x10 | M55 HP | 3.3–4.0 ms |
+| Keyword spotter | Ethos-U85-256 | 0.34 ms, 2 strides/s |
+| HE core (M55 + Ethos-U55) | unused | next step: always-on KWS, not built |
+
+Full frame: 255–287 ms (3.5–3.9 FPS; LCD footer 274 ms / 3.6 FPS), measured with the earlier v2
+vision model (same architecture). The NPU is about 3% of the frame. Camera capture, LCD/LVGL and
+per-frame UART logging dominate. Per-frame UART printing has since been removed from the classify
+path; FPS after that change: `TODO(measure)` (read the LCD footer).
+
+### Voice workflow
+
+| Keyword | Action |
+|---|---|
+| `go` | Latch the identified part, open its inspection checklist; live label freezes. Only accepted when vision has a confident identification. |
+| `yes` | Mark selected item pass, advance. |
+| `no` | Mark fail, advance. On item 1 ("is this the right part?") reject the identification and return to scanning. |
+| `up` / `down` | Move cursor. |
+| `stop` | Back to live scanning. |
+
+The model knows 10 words (yes no up down left right on off go stop) plus `_silence_` and
+`_unknown_`; the UI uses 6. Vision decides *what*; voice confirms and drives the workflow.
+
+### Demo class mask
+
+`CLS_ALLOWED_MASK` (in `usecase.cmake`, default all) limits which classes may be shown. The demo
+build uses `0x13250`: power shelf, network port, fan, power connector, drive bay (+ background).
 
 ## 2. Training and distillation pipeline
 
 ```mermaid
 flowchart TB
-  DS[DC-Ops dataset<br/>319 images, 16 classes<br/>reused from phone project] --> Y
-  Y[DC-Ops YOLOv8n-seg v3<br/>reused from phone project] --> CR
-  DS -- unambiguous own labels --> CR
-  CR[Component crops 224 px + background crops<br/>3,494 = 3,076 train / 418 val] --> T
-  T[ConvNeXt-Small in22k teacher<br/>fine-tuned, flip-TTA soft labels] --> S
+  DS[DC-Ops dataset<br/>reused from phone project] --> Y
+  Y[DC-Ops YOLOv8n-seg<br/>pseudo-labeller] --> CR1
+  CR1[Wave 1: 3,494 crops] --> T1[ConvNeXt-Small teacher<br/>69.4% auto labels]
+  HL[2,056 human-labelled images] --> CR2[Wave 2: 19,203 crops]
+  CR1 --> CR2
+  CR2 --> T2[2x ConvNeXt-Base, out-of-fold<br/>97.2% human-labelled val]
+  T2 --> S
   AUG[Board-camera augmentation<br/>blur, low-res, colour cast, moire, glare, noise] --> S
-  S[MobileNetV2 student, NHWC input<br/>KD T=4 alpha=0.7<br/>128/160/192 px + ablations] --> EX
+  S[MobileNetV2 v2_r160_kd<br/>KD T=4 alpha=0.7, EMA<br/>0.912 val / 0.913 board-sim] --> FT
+  BC[Board-camera capture over J-Link<br/>clock-synced slideshow, 1,330 frames] --> FT
+  RP[1,503 replay crops] --> FT
+  FT[v3_board_ft, deployed<br/>held-out board 35.5% -> 73.0%] --> EX
   SC[Speech Commands v0.02] --> AST[AST teacher<br/>MIT/ast-finetuned-speech-commands-v2]
-  AST --> K[DS-CNN student<br/>on the board's exact MFCC]
+  AST --> K[DS-CNN dscnn_m_agc<br/>board MFCC + AGC emulation<br/>94.66% test]
   SC --> K
   K --> EX
-  EX[PT2E int8 quantization, EthosUPartitioner<br/>ethos-u85-256, ExecuTorch 1.1] --> PTE[.pte -> firmware MODEL_PATH]
+  EX[torch.export -> PT2E EthosUQuantizer int8<br/>EthosUPartitioner -> TOSA -> Vela 4.5.0<br/>cortex_m passes, ExecuTorch 1.1.0] --> PTE[.pte -> firmware]
 ```
 
-Scripts: `dcops/jobs/{teacher,student,kws}.py`, `dcops/export/{export_student,export_kws}.py`,
-`dcops/export/watch_overnight.sh` (pulls results, exports them, rewrites `dcops/REPORT.md`).
+Scripts: `dcops/jobs/{teacher,teacher_v2,student,kws,finetune_board}.py`,
+`dcops/export/{export_student,export_kws}.py`. Notebooks: `dcops/colab/` (incl.
+`dcops_board_ft.ipynb`). Board capture tools: `dcops/board_capture/` (`capture.py` clock mode,
+`build_ft_data.py`, `build_deck2.py`). All training ran on Colab GPUs.
 
-Teacher crops per class: server rack 141, compute tray 351, NVLink switch tray 0, network switch 0,
-power shelf 245, cable 26, network port 702, LED indicator 148, label 66, fan 77, cooling manifold 31,
-cable cartridge 0, power connector 5, drive bay 759, management port 0, DPU 30, background 913.
+Vela: `ethos-u85-256`, `Ethos_U85_SRAM_MRAM`, `Shared_Sram`. ExecuTorch 1.1 lowers
+conv -> permute -> reshape into cancelling transposes that Vela miscompiles; the student uses an
+NPU-friendly head (AvgPool + reshape + Linear on NHWC) to avoid it. See `docs/blazeface-vela-bug.md`.
 
 ## 3. Memory map (M55 HP image)
 
-Figures are from the ELF of the validated classifier build
-(`build-classify`, MobileNetV2 160 px, 67-class ImageNet subset, `ACTIVATION_BUF_SZ=0x180000`).
-The DC-Ops student build replaces the .pte. Its numbers are `TODO(measure)`.
+### build-fusion (deployed)
 
-### MRAM (5.5 MB total; HP app partition 0x80200000–0x80580000 = 3.5 MiB)
+| Item | Value |
+|---|---|
+| Image end | 0x805473C4 |
+| Guard limit (`scripts/alif/flash_e8_hp.sh`) | 0x80578000 |
+| Headroom | ~195 KB |
+| Vision .pte | 2301 KB |
+| KWS .pte | 93 KB |
+| KWS activation buffer | 0x20000 (128 KB) |
+| Alif ATOC boot table | 0x8057BC00. Never overwrite. |
+
+### Earlier validation build (for the section breakdown)
+
+Figures from the ELF of `build-classify` (MobileNetV2 160 px, 67-class ImageNet subset,
+`ACTIVATION_BUF_SZ=0x180000`).
+
+MRAM (5.5 MB total; HP app partition 0x80200000–0x80580000 = 3.5 MiB):
 
 | Range | Contents | Size |
 |---|---|---|
@@ -81,11 +137,10 @@ The DC-Ops student build replaces the .pte. Its numbers are `TODO(measure)`.
 
 > An oversized image links fine and flashes fine, but it overwrites the ATOC and the HP core
 > stops booting. We hit this and recovered by writing an MRAM backup through the HE core
-> (the backup and restore script are outside this repo, in `../board-backups/`; the stock `restore.sh` there connects as the HP core, so it needs adapting for an HE-side restore). The flash script now refuses any image that ends past 0x80578000.
+> (J-Link device `AE822FA0E5597LS0_M55_HE`; procedure in `README_SECTION.md`). The flash script
+> now refuses any image that ends past 0x80578000.
 
-Budget for the next model: about 2.6 MB (2,352 KB + 312 KB) of .pte at most, with the current code size.
-
-### SRAM (9.75 MB on chip)
+SRAM (9.75 MB on chip), validation build:
 
 | Section | Address | Size | Contents |
 |---|---|---|---|
@@ -93,6 +148,3 @@ Budget for the next model: about 2.6 MB (2,352 KB + 312 KB) of .pte at most, wit
 | `.bss.unstriped` | 0x02700000 | 768,000 B | display framebuffer (480x800 RGB565) |
 | ITCM | 0x01000000 | 167 KB | hot code |
 | DTCM | 0x20000000 | data 7 KB, `.bss` 30 KB, non-secure region 140 KB, heap 92 KB, stack 32 KB | |
-
-KWS: the model and arena sizes are `TODO(measure)`. The DS-CNN is tens of thousands of params,
-so the expected footprint is tens of KB of MRAM.
