@@ -4,7 +4,7 @@
 # ///
 # SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
-"""DC-Ops on Alif E8, stage 2 (student): distil the teacher into a MobileNetV2 for the Ethos-U85.
+"""DCSM-Simplified, stage 2 (student): distil the teacher into a MobileNetV2 for the Ethos-U85.
 
 Waits for the teacher's crops (dataset repo, meta.json last), then fine-tunes an ImageNet
 MobileNetV2 on them with knowledge distillation (soft teacher logits + hard labels) and an

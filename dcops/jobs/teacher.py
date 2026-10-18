@@ -6,7 +6,7 @@
 # ///
 # SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
-"""DC-Ops on Alif E8, stage 1 (teacher): build component crops and fine-tune a large teacher.
+"""DCSM-Simplified, stage 1 (teacher): build component crops and fine-tune a large teacher.
 
 1. Download the DC-Ops dataset (319 images, auto-labelled polygons) and the fine-tuned
    DC-Ops YOLOv8n-seg detector (16 classes) from the Hub.

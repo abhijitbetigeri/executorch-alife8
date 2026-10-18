@@ -1,4 +1,4 @@
-# DC-Ops on E8: status (13:15, 2026-10-18)
+# DCSM-Simplified: status (13:15, 2026-10-18)
 
 The demo works on the board. What remains is one FPS reading, the video, the tag and the submission.
 

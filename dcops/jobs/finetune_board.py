@@ -4,7 +4,7 @@
 # ///
 # SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
-"""DC-Ops on Alif E8: fine-tune the deployed student on frames from the board's own camera.
+"""DCSM-Simplified: fine-tune the deployed student on frames from the board's own camera.
 
 The wave-2 student (v2_r160_kd) is right on clean photos (18/24 held-out slides on the PC) but
 confuses classes through the board camera (screen moire, glare, low resolution, colour). This

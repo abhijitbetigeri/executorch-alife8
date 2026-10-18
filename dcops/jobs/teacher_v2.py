@@ -4,7 +4,7 @@
 # ///
 # SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
-"""DC-Ops on Alif E8, wave 2 teacher: human labels + out-of-fold soft labels.
+"""DCSM-Simplified, wave 2 teacher: human labels + out-of-fold soft labels.
 
 Wave 1 learned from YOLO pseudo-labels only (teacher 69 %). Wave 2 adds the DC-Ops merged
 dataset: 2,056 human-labelled images (32.5k boxes, Roboflow CC BY 4.0, mapped to the 16 DC-Ops

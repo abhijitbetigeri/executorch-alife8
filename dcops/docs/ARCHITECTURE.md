@@ -1,4 +1,4 @@
-# DC-Ops on E8: architecture
+# DCSM-Simplified: architecture
 
 `TODO(measure)` marks anything not yet measured.
 

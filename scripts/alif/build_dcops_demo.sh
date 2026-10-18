@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Builds the judged DC-Ops on E8 firmware: camera classifier + voice keywords in one HP image.
+# Builds the judged DCSM-Simplified firmware: camera classifier + voice keywords in one HP image.
 #   vision: resources/object_detection/dcops/dcops_v3_board_ft_ethos-u85-256.pte (board-camera fine-tune)
 #   voice:  resources/kws/dcops/dscnn_m_agc_ethos-u85-256.pte
 #   shown classes: power shelf, network port, fan, power connector, drive bay (+ background)

@@ -1,4 +1,4 @@
-## DC-Ops on E8: build, export, flash, run
+## DCSM-Simplified: build, export, flash, run
 
 A handheld, air-gapped data-center component identifier on the Alif Ensemble E8 DevKit. The camera
 feeds a MobileNetV2 on the Ethos-U85, and the LCD shows the component and its info card. A DS-CNN

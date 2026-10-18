@@ -1,4 +1,6 @@
-# DC-Ops on E8: an air-gapped data-center component identifier
+# DCSM-Simplified: an air-gapped data-center component identifier
+
+*DataCenter Service Management, Simplified.*
 
 > Devpost text. Every number below is measured; `TODO(...)` marks the few items not measured or not done yet.
 > Repo: https://github.com/abhijitbetigeri/executorch-alife8 (fork of

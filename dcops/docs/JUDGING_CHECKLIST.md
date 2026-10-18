@@ -1,4 +1,4 @@
-# DC-Ops on E8: judging checklist (Sat Oct 18, deadline 5:00 pm PDT)
+# DCSM-Simplified: judging checklist (Sat Oct 18, deadline 5:00 pm PDT)
 
 One section per criterion: the evidence we have, where it lives, and what is still missing.
 

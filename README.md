@@ -1,4 +1,6 @@
-# DC-Ops on E8
+# DCSM-Simplified
+
+*DataCenter Service Management, Simplified.*
 
 Offline data-center component identifier for the Alif Ensemble E8 DevKit: a camera classifier and a
 voice keyword spotter, two ExecuTorch models on the Ethos-U85. Built for the Arm + ExecuTorch Edge AI

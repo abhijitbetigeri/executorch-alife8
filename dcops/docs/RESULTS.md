@@ -1,4 +1,4 @@
-# DC-Ops on E8: results
+# DCSM-Simplified: results
 
 PC numbers come from `dcops/jobs/` on a Colab GPU (2026-10-18). Board numbers come from the DevKit-E8, M55 HP @ 400 MHz.
 

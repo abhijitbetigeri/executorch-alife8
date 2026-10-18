@@ -4,7 +4,7 @@
 # ///
 # SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
-"""DC-Ops on Alif E8, voice: distil a keyword spotter for the E8 from a large speech model.
+"""DCSM-Simplified, voice: distil a keyword spotter for the E8 from a large speech model.
 
 Teacher: MIT/ast-finetuned-speech-commands-v2 (Audio Spectrogram Transformer, ~87M params).
 Student: DS-CNN (depthwise-separable CNN, tens of thousands of params) on the exact MFCC the

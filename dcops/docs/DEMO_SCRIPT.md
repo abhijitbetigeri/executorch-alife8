@@ -1,4 +1,4 @@
-# DC-Ops on E8: live demo run sheet (~2 min)
+# DCSM-Simplified: live demo run sheet (~2 min)
 
 ## Before judges arrive (T-10 min)
 
