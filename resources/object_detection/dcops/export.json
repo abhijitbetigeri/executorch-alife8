@@ -1,0 +1,12 @@
+{
+  "pte": "models/hub/vision/v2_r160_kd//student_ethos-u85-256.pte",
+  "kb": 2302,
+  "res": 160,
+  "cpu_ops": [
+    "cortex_m::dequantize_per_tensor",
+    "cortex_m::quantize_per_tensor"
+  ],
+  "calib_acc_float": 0.890625,
+  "calib_acc_int8": 0.890625,
+  "float_int8_agreement": 1.0
+}

@@ -1,6 +1,6 @@
 # DC-Ops E8 overnight report
 
-Updated 2026-10-18 00:19
+Updated 2026-10-18 01:06
 
 ## Vision students (Ethos-U85 exports)
 
@@ -14,6 +14,8 @@ Updated 2026-10-18 00:19
 | r192_kd | 0.632 | 0.531 | 0.96875 | 2301 | cortex_m::dequantize_per_tensor, cortex_m::quantize_per_tensor |
 | v2_r160_kd | 0.912 | 0.913 | 1.0 | 2302 | cortex_m::dequantize_per_tensor, cortex_m::quantize_per_tensor |
 | v2_r160_kd_mix | 0.914 | 0.814 | 0.984375 | 2301 | cortex_m::dequantize_per_tensor, cortex_m::quantize_per_tensor |
+| v2_r160_kd_mix_e80 | 0.927 | 0.839 | 1.0 | 2304 | cortex_m::dequantize_per_tensor, cortex_m::quantize_per_tensor |
+| v2_r160_noaug | 0.923 | 0.758 | 1.0 | 2295 | cortex_m::dequantize_per_tensor, cortex_m::quantize_per_tensor |
 | v2_r160_nokd | 0.912 | 0.804 | 1.0 | 2304 | cortex_m::dequantize_per_tensor, cortex_m::quantize_per_tensor |
 
 ## Keyword spotters
