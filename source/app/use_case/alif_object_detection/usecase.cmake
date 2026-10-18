@@ -164,6 +164,83 @@ if (${ML_FRAMEWORK} STREQUAL "ExecuTorch")
         )
     endif()
 
+    # Voice (CLASSIFY only): a DS-CNN keyword spotter as a second ExecuTorch program in the same
+    # HP image. Audio comes from the audio_alif HAL (TARGET_MICS), the MFCC from the kws API, and
+    # the keywords drive the scanner card (go = latch, stop = resume, up/down = checklist,
+    # yes/no = pass/fail). See dcops/docs/fusion-firmware.md. OFF leaves the build unchanged.
+    USER_OPTION(${use_case}_ENABLE_VOICE "CLASSIFY: keyword spotting (second .pte) drives the scanner UI"
+        OFF
+        BOOL)
+
+    if (${use_case}_ENABLE_VOICE)
+        if (NOT _ET_TASK_CLASSIFY)
+            message(FATAL_ERROR "${use_case}: ENABLE_VOICE needs ${use_case}_ET_TASK=CLASSIFY")
+        endif()
+
+        USER_OPTION(${use_case}_KWS_MODEL_PATH "Voice: DS-CNN keyword spotter (.pte) for the Ethos-U85"
+            ${MLEK_ROOT}/dcops/models/placeholder/kws_random/kws_ethos-u85-256.pte
+            FILEPATH)
+
+        USER_OPTION(${use_case}_KWS_LABELS "Voice: keyword labels, one per line, in model output order"
+            ${MLEK_ROOT}/resources/kws/labels/micronet_kws_labels.txt
+            FILEPATH)
+
+        # Method allocator of the KWS program (planned buffers + method metadata), in DTCM.
+        # The Ethos-U scratch comes from the shared ML_FWK_TMP_MEM_SIZE pool (used in turn).
+        USER_OPTION(${use_case}_KWS_ACTIVATION_BUF_SZ "Voice: KWS method arena size (DTCM)"
+            0x00020000
+            STRING)
+
+        USER_OPTION(${use_case}_KWS_THRESHOLD "Voice: averaged softmax needed to fire a keyword (0-1)"
+            0.7
+            STRING)
+
+        list(APPEND ${use_case}_API_LIST "kws")
+        list(APPEND ${use_case}_COMPILE_DEFS
+            ENABLE_VOICE=1
+            KWS_ACTIVATION_BUF_SZ=${${use_case}_KWS_ACTIVATION_BUF_SZ}
+            KWS_THRESHOLD=${${use_case}_KWS_THRESHOLD}f)
+
+        file(STRINGS "${${use_case}_KWS_LABELS}" _KWS_LABELS)
+        list(LENGTH _KWS_LABELS _NUM_KWS_LABELS)
+        set(_KWS_LABELS_C "")
+        foreach(_L IN LISTS _KWS_LABELS)
+            string(APPEND _KWS_LABELS_C "\"${_L}\", ")
+        endforeach()
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${${use_case}_KWS_LABELS})
+
+        # Generated into a subdirectory so it can never clash with the vision model's .cc name.
+        generate_model_code(
+            MODEL_PATH  ${${use_case}_KWS_MODEL_PATH}
+            DESTINATION ${SRC_GEN_DIR}/kws
+            EXPRESSIONS
+                "extern const int   g_FrameLength    = 640"
+                "extern const int   g_FrameStride    = 320"
+                "extern const float g_ScoreThreshold = ${${use_case}_KWS_THRESHOLD}f"
+                "extern const char* const g_kwsLabels[] = { ${_KWS_LABELS_C} }"
+                "extern const int g_numKwsLabels = ${_NUM_KWS_LABELS}"
+            NAMESPACE   "arm" "app" "kws")
+
+        # The audio HAL prints two lines per 0.5 s stride; at UART speed that is several ms of
+        # blocking in the camera loop, so keep it quiet in this app.
+        if (TARGET audio_alif)
+            target_compile_definitions(audio_alif PRIVATE AUDIO_ALIF_QUIET)
+        endif()
+
+        # The MFCC is the only FFT user in this image and always uses 1024 points: init it with
+        # the size-specific CMSIS-DSP call so the tables of the other sizes (~110 KiB, copied to
+        # DTCM from MRAM) are not linked. MRAM headroom below 0x80578000 is tight.
+        # CMSIS-DSP keeps all sizes in one object per function family, and the toolchain builds
+        # with -fno-function-sections, so also give CMSIS-DSP per-function sections for the
+        # linker's --gc-sections to drop the unused sizes (its code all lands in ITCM via .text*).
+        if (TARGET arm_math)
+            target_compile_definitions(arm_math PRIVATE MLEK_FFT_FIXED_LEN=1024)
+        endif()
+        if (TARGET CMSISDSP)
+            target_compile_options(CMSISDSP PRIVATE -ffunction-sections)
+        endif()
+    endif()
+
     # Link only the CPU operators the program still calls (the int8 boundary).
     if (COMMAND generate_pte_ops_lib)
         generate_pte_ops_lib(
@@ -172,6 +249,15 @@ if (${ML_FRAMEWORK} STREQUAL "ExecuTorch")
             SELECT_OPS_LIST "")
         if (TARGET ${use_case}_portable_ops_lib)
             set(${use_case}_LINK_LIBS ${use_case}_portable_ops_lib)
+        endif()
+        if (${use_case}_ENABLE_VOICE)
+            generate_pte_ops_lib(
+                MODEL_PATH      "${${use_case}_KWS_MODEL_PATH}"
+                LIB_NAME        "${use_case}_kws_portable_ops_lib"
+                SELECT_OPS_LIST "")
+            if (TARGET ${use_case}_kws_portable_ops_lib)
+                list(APPEND ${use_case}_LINK_LIBS ${use_case}_kws_portable_ops_lib)
+            endif()
         endif()
     endif()
 

@@ -31,6 +31,7 @@
 #include "UseCaseCommonUtils.hpp"               /* Utils functions. */
 #include "mlek/log/log_macros.h"                /* Logging functions */
 #include "BufAttributes.hpp"                    /* Buffer attributes to be applied */
+#include "VoiceControl.hpp"                     /* Optional keyword spotting (ENABLE_VOICE) */
 
 namespace arm {
 namespace app {
@@ -63,6 +64,14 @@ void MainLoop()
         printf_err("Failed to initialise use case handler\n");
         return;
     }
+
+#if ENABLE_VOICE && defined(MLEK_FWK_EXECUTORCH)
+    /* Second ExecuTorch program (keyword spotter) with its own arena; the camera app keeps
+     * running if it fails. */
+    if (!alif::app::voice::Init()) {
+        printf_err("Voice control unavailable, continuing with the camera only\n");
+    }
+#endif
 
     /* Instantiate application context. */
     arm::app::ApplicationContext caseContext;

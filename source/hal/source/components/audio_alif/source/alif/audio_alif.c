@@ -346,7 +346,7 @@ void audio_preprocessing(int16_t *audio, int samples)
     arm_mean_f16(audio_fp, samples, &audio_mean);
     arm_absmax_no_idx_f16(audio_fp, samples, &audio_absmax);
     //if (audio_absmax == INT16_MIN) audio_absmax = INT16_MAX; // CMSIS-DSP issue #66
-#ifndef GPIO_PROFILING
+#if !defined(GPIO_PROFILING) && !defined(AUDIO_ALIF_QUIET)
     printf("Original sample stats: absmax = %ld, mean = %ld\n", lround(32768*audio_absmax), lround(32768*audio_mean));
 #endif
     if (auto_gain) {
@@ -361,7 +361,7 @@ void audio_preprocessing(int16_t *audio, int samples)
     arm_mean_q15(audio, samples, &audio_mean_q15);
     arm_absmax_no_idx_q15(audio, samples, &audio_absmax_q15);
     if (audio_absmax_q15 == INT16_MIN) audio_absmax_q15 = INT16_MAX; // CMSIS-DSP issue #66
-#ifndef GPIO_PROFILING
+#if !defined(GPIO_PROFILING) && !defined(AUDIO_ALIF_QUIET)
     printf("Normalized sample stats: absmax = %d, mean = %d (gain = %.0f dB)\n", audio_absmax_q15, audio_mean_q15, 20 * log10f(current_gain) );
 #endif
 }

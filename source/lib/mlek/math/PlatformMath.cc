@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2021-2022, 2025 Arm Limited and/or its
+ * SPDX-FileCopyrightText: Copyright 2021-2022, 2025-2026 Arm Limited and/or its
  * affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -98,6 +98,19 @@ namespace math {
 #if (defined(__ARM_FEATURE_DSP) && (__ARM_FEATURE_DSP == 1))
         arm_status status = ARM_MATH_ARGUMENT_ERROR;
         switch (fftInstance.m_type) {
+#if defined(MLEK_FFT_FIXED_LEN) && (MLEK_FFT_FIXED_LEN == 1024)
+        /* Size-specific init: the generic one references the twiddle tables of every FFT size
+         * (~110 KiB), which then all get linked in. Only 1024 points are supported this way. */
+        case FftType::real:
+            status = fftLen == 1024 ? arm_rfft_fast_init_1024_f32(&fftInstance.m_instanceReal)
+                                    : ARM_MATH_ARGUMENT_ERROR;
+            break;
+
+        case FftType::complex:
+            status = fftLen == 1024 ? arm_cfft_init_1024_f32(&fftInstance.m_instanceComplex)
+                                    : ARM_MATH_ARGUMENT_ERROR;
+            break;
+#else
         case FftType::real:
             status = arm_rfft_fast_init_f32(&fftInstance.m_instanceReal, fftLen);
             break;
@@ -105,6 +118,7 @@ namespace math {
         case FftType::complex:
             status = arm_cfft_init_f32(&fftInstance.m_instanceComplex, fftLen);
             break;
+#endif
 
         default:
             printf_err("Invalid FFT type\n");

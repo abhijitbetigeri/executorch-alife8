@@ -40,6 +40,7 @@
 #include "board_utils.h"
 #endif
 #include "ScreenLayout.hpp"
+#include "VoiceControl.hpp"
 #include "hal.h"
 
 #ifdef POWER_MEASUREMENT_SUPPORT
@@ -49,6 +50,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "RTE_Device.h"
@@ -96,6 +98,25 @@ lv_obj_t* perfLabel   = nullptr;
 int shownClass = -2; /* class on the card: -1 = unsure, -2 = not drawn yet */
 int shownPct   = -1;
 uint32_t frameIntervals = 0;
+#if ENABLE_VOICE
+/* Voice-driven scanner state. "go" latches the class on the card and opens an inspection
+ * checklist; up/down move the cursor, yes/no mark the item, "stop" resumes live scanning. */
+constexpr int kMaxItems    = 6;
+constexpr int kItemLen     = 96;
+constexpr int kFlashStrides = 3; /* keyword stays highlighted for ~1.5 s */
+lv_obj_t* micLabel   = nullptr;
+int latchedClass     = -1;       /* class held on the card, -1 = live scanning */
+int cursorItem       = 0;
+int numItems         = 0;
+int itemState[kMaxItems];        /* 0 = open, 1 = pass, 2 = fail */
+char itemText[kMaxItems][kItemLen];
+char cardDesc[2 * kItemLen];     /* summary lines that are not checklist items */
+char cardText[1024];
+char micText[160];
+int micFlash         = 0;
+uint32_t micColor    = 0x30D158;
+bool micShownOnce    = false;
+#endif
 #endif
 #if defined(MLEK_FWK_EXECUTORCH)
 /* Per-stage cycle totals, printed to the console every kTimingReportFrames frames. */
@@ -150,6 +171,12 @@ volatile int32_t  g_clsSmoothedTopIdx;   /* CLASSIFY: top-1 of the EMA-smoothed 
 volatile int32_t  g_clsSmoothedTopProb;  /* CLASSIFY: its smoothed probability x1000 */
 volatile int32_t  g_clsShownIdx;         /* CLASSIFY: class on the card, -1 = unsure */
 volatile uint32_t g_clsPerfUs[4];        /* CLASSIFY: ~1 s averages: pre, NPU, post, frame (us) */
+#if ENABLE_VOICE
+volatile int32_t  g_voiceLatchedIdx = -1; /* VOICE: class latched by "go", -1 = live */
+volatile int32_t  g_voiceCursor;          /* VOICE: checklist item under the cursor */
+volatile int32_t  g_voiceItemState[6];    /* VOICE: 0 open, 1 pass ("yes"), 2 fail ("no") */
+volatile uint32_t g_voiceCommands;        /* VOICE: keywords that changed the UI state */
+#endif
 }
 #endif
 
@@ -254,6 +281,20 @@ namespace app {
         lv_obj_set_style_pad_ver(perfLabel, 4, LV_PART_MAIN);
         lv_obj_align(perfLabel, LV_ALIGN_BOTTOM_MID, 0, -10);
         lv_label_set_text_static(perfLabel, "Ethos-U85  NPU -- ms  |  -- FPS");
+
+#if ENABLE_VOICE
+        /* Mic / keyword indicator, bottom left, above the perf footer. */
+        micLabel = lv_label_create(screen);
+        lv_obj_set_style_text_font(micLabel, &lv_font_montserrat_16, LV_PART_MAIN);
+        lv_obj_set_style_text_color(micLabel, lv_color_hex(0xB0B0B0), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(micLabel, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(micLabel, LV_OPA_60, LV_PART_MAIN);
+        lv_obj_set_style_radius(micLabel, 6, LV_PART_MAIN);
+        lv_obj_set_style_pad_hor(micLabel, 8, LV_PART_MAIN);
+        lv_obj_set_style_pad_ver(micLabel, 4, LV_PART_MAIN);
+        lv_obj_align(micLabel, LV_ALIGN_BOTTOM_LEFT, 10, -64);
+        lv_label_set_text_static(micLabel, LV_SYMBOL_AUDIO "  starting...");
+#endif
     }
 
     /* Shows class `shown` at `pct` percent, or the neutral prompt when shown < 0. Only touches
@@ -292,6 +333,167 @@ namespace app {
         }
         shownClass = shown;
         shownPct   = pct;
+    }
+#endif
+
+#if defined(MLEK_FWK_EXECUTORCH) && ET_TASK_CLASSIFY && ENABLE_VOICE
+    /* Splits the card summary of class c into description lines and checklist items. */
+    static void VoiceBuildChecklist(int c)
+    {
+        numItems = 0;
+        cardDesc[0] = '\0';
+        snprintf(itemText[numItems++], kItemLen, "Identification correct?");
+        const char* p = object_detection::g_classCardSummaries[c];
+        while (p != nullptr && *p != '\0') {
+            const char* e = strchr(p, '\n');
+            const int n   = e ? static_cast<int>(e - p) : static_cast<int>(strlen(p));
+            if (strncmp(p, "LED", 3) == 0 && numItems < kMaxItems - 1) {
+                snprintf(itemText[numItems++], kItemLen, "%.*s", n, p);
+            } else if (n > 0) {
+                const size_t used = strlen(cardDesc);
+                snprintf(cardDesc + used, sizeof(cardDesc) - used, "%s%.*s",
+                         used ? "\n" : "", n, p);
+            }
+            p = e ? e + 1 : nullptr;
+        }
+        snprintf(itemText[numItems++], kItemLen, "Cables and latches seated?");
+        for (int i = 0; i < kMaxItems; ++i) {
+            itemState[i]        = 0;
+            g_voiceItemState[i] = 0;
+        }
+        cursorItem = 0;
+    }
+
+    /* Draws the latched card with its checklist. Call with the LVGL lock held. */
+    static void VoiceRenderLatched()
+    {
+        if (card == nullptr || latchedClass < 0) {
+            return;
+        }
+        int pass = 0, fail = 0;
+        size_t used = 0;
+        used += snprintf(cardText + used, sizeof(cardText) - used, "%s%s", cardDesc,
+                         cardDesc[0] ? "\n" : "");
+        for (int i = 0; i < numItems && used < sizeof(cardText); ++i) {
+            const char* mark = itemState[i] == 1 ? LV_SYMBOL_OK
+                             : itemState[i] == 2 ? LV_SYMBOL_CLOSE : "-";
+            pass += itemState[i] == 1;
+            fail += itemState[i] == 2;
+            used += snprintf(cardText + used, sizeof(cardText) - used, "%s%s  %s  %s",
+                             i ? "\n" : "", i == cursorItem ? LV_SYMBOL_RIGHT : "   ", mark,
+                             itemText[i]);
+        }
+        if (pass + fail == numItems && used < sizeof(cardText)) {
+            snprintf(cardText + used, sizeof(cardText) - used,
+                     "\nInspection done: %d pass, %d fail. Say \"stop\" to scan.", pass, fail);
+        }
+        const lv_color_t accent = lv_color_hex(fail ? 0xFF453A : 0x0A84FF);
+        lv_label_set_text_static(cardTitle, object_detection::g_classCardTitles[latchedClass]);
+        lv_obj_set_style_text_color(cardTitle, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        lv_obj_set_style_border_width(card, 6, LV_PART_MAIN);
+        lv_obj_set_style_border_color(card, accent, LV_PART_MAIN);
+        lv_obj_set_style_text_color(cardConf, accent, LV_PART_MAIN);
+        lv_label_set_text_static(cardConf, "HOLD");
+        lv_obj_clear_flag(cardConf, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(cardSummary, cardText);
+        lv_obj_clear_flag(cardSummary, LV_OBJ_FLAG_HIDDEN);
+        g_voiceCursor = cursorItem;
+    }
+
+    /* Applies a keyword to the scanner. Returns a short note for the mic indicator, or nullptr.
+     * Call with the LVGL lock held. */
+    static const char* VoiceApply(const char* kw)
+    {
+        const bool latched = latchedClass >= 0;
+        if (strcmp(kw, "go") == 0) {
+            if (latched) {
+                return "already holding";
+            }
+            if (shownClass < 0) {
+                return "nothing identified";
+            }
+            latchedClass = shownClass;
+            VoiceBuildChecklist(latchedClass);
+            VoiceRenderLatched();
+            info("Voice: holding \"%s\"\n", object_detection::g_classLabels[latchedClass]);
+            return "holding";
+        }
+        if (!latched) {
+            return strcmp(kw, "stop") == 0 ? "scanning" : nullptr;
+        }
+        if (strcmp(kw, "stop") == 0) {
+            latchedClass = -1;
+            shownClass   = -2; /* force ClassifierUiShow to redraw the live card */
+            return "scanning";
+        }
+        if (strcmp(kw, "down") == 0 || strcmp(kw, "up") == 0) {
+            const int step = kw[0] == 'd' ? 1 : -1;
+            cursorItem = std::min(std::max(cursorItem + step, 0), numItems - 1);
+            VoiceRenderLatched();
+            return nullptr;
+        }
+        if (strcmp(kw, "yes") == 0 || strcmp(kw, "no") == 0) {
+            const bool yes = kw[0] == 'y';
+            if (cursorItem == 0 && !yes) {
+                info("Voice: identification rejected\n");
+                latchedClass = -1;
+                shownClass   = -2;
+                return "rejected, scanning";
+            }
+            itemState[cursorItem]        = yes ? 1 : 2;
+            g_voiceItemState[cursorItem] = itemState[cursorItem];
+            if (cursorItem < numItems - 1) {
+                ++cursorItem;
+            }
+            VoiceRenderLatched();
+            return yes ? "pass" : "fail";
+        }
+        return nullptr;
+    }
+
+    /* Runs between starting a camera capture and waiting for it: if a new 0.5 s audio stride is
+     * ready, KWS runs here (MFCC on the M55, DS-CNN on the NPU) while the camera fills its frame. */
+    static void VoiceTick()
+    {
+        if (!alif::app::voice::IsReady()) {
+            if (!micShownOnce && micLabel != nullptr) {
+                ScopedLVGLLock lv_lock;
+                lv_label_set_text_static(micLabel, LV_SYMBOL_AUDIO "  voice off (init failed)");
+                micShownOnce = true;
+            }
+            return;
+        }
+        int kw = -1;
+        float conf = 0.0f;
+        if (!alif::app::voice::Poll(kw, conf)) {
+            return;
+        }
+        ScopedLVGLLock lv_lock;
+        if (micLabel == nullptr) {
+            return;
+        }
+        if (kw >= 0) {
+            const char* label = alif::app::voice::Label(kw);
+            const char* note  = VoiceApply(label);
+            g_voiceLatchedIdx = latchedClass;
+            if (note != nullptr) {
+                ++g_voiceCommands;
+            }
+            micColor = (note && (strncmp(note, "rej", 3) == 0 || strcmp(note, "fail") == 0))
+                           ? 0xFF453A : 0x30D158;
+            micFlash = kFlashStrides;
+            snprintf(micText, sizeof(micText), LV_SYMBOL_AUDIO "  \"%s\"  %d%%%s%s", label,
+                     static_cast<int>(100.0f * conf + 0.5f), note ? "  -  " : "", note ? note : "");
+            lv_label_set_text(micLabel, micText);
+            lv_obj_set_style_text_color(micLabel, lv_color_hex(micColor), LV_PART_MAIN);
+        } else if (micFlash > 0 && --micFlash == 0) {
+            lv_obj_set_style_text_color(micLabel, lv_color_hex(0xB0B0B0), LV_PART_MAIN);
+        } else if (!micShownOnce) {
+            lv_label_set_text_static(micLabel, LV_SYMBOL_AUDIO "  listening: say \"go\" to hold");
+        }
+        if (!micShownOnce) {
+            micShownOnce = true;
+        }
     }
 #endif
 
@@ -413,6 +615,9 @@ namespace app {
         results.clear();
 
         hal_camera_start();
+#if defined(MLEK_FWK_EXECUTORCH) && ET_TASK_CLASSIFY && ENABLE_VOICE
+        VoiceTick();
+#endif
 
         uint32_t capturedFrameSize = 0;
         const uint8_t* currImage = hal_camera_get_captured_frame(&capturedFrameSize);
@@ -522,7 +727,14 @@ namespace app {
                 g_clsSmoothedTopProb = (int32_t)(1000.0f * bestProb);
                 g_clsShownIdx        = shown;
                 ++g_clsFrames;
+#if ENABLE_VOICE
+                /* While a class is held by "go", the card shows the checklist, not live results. */
+                if (latchedClass < 0) {
+                    ClassifierUiShow(shown, static_cast<int>(100.0f * bestProb + 0.5f));
+                }
+#else
                 ClassifierUiShow(shown, static_cast<int>(100.0f * bestProb + 0.5f));
+#endif
             }
             const uint32_t td = Get_SysTick_Cycle_Count32();
             preCycles  += tb - ta;
@@ -544,11 +756,25 @@ namespace app {
                 g_clsPerfUs[3] = (uint32_t)frameUs;
                 const uint32_t fps10 = (uint32_t)(1e7f / frameUs + 0.5f);
                 if (perfLabel != nullptr) {
+#if ENABLE_VOICE
+                    const uint32_t kMfcc = alif::app::voice::MfccUs();
+                    const uint32_t kNpu  = alif::app::voice::NpuUs();
+                    lv_label_set_text_fmt(perfLabel,
+                                          "Ethos-U85  NPU %" PRIu32 ".%" PRIu32 " ms  |  "
+                                          "frame %" PRIu32 " ms  |  %" PRIu32 ".%" PRIu32 " FPS\n"
+                                          "KWS / 0.5 s:  MFCC %" PRIu32 ".%" PRIu32 " ms  |  "
+                                          "NPU %" PRIu32 ".%" PRIu32 " ms",
+                                          g_clsPerfUs[1] / 1000, (g_clsPerfUs[1] / 100) % 10,
+                                          (g_clsPerfUs[3] + 500) / 1000, fps10 / 10, fps10 % 10,
+                                          kMfcc / 1000, (kMfcc / 100) % 10, kNpu / 1000,
+                                          (kNpu / 100) % 10);
+#else
                     lv_label_set_text_fmt(perfLabel,
                                           "Ethos-U85  NPU %" PRIu32 ".%" PRIu32 " ms  |  "
                                           "frame %" PRIu32 " ms  |  %" PRIu32 ".%" PRIu32 " FPS",
                                           g_clsPerfUs[1] / 1000, (g_clsPerfUs[1] / 100) % 10,
                                           (g_clsPerfUs[3] + 500) / 1000, fps10 / 10, fps10 % 10);
+#endif
                 }
                 info("CLASSIFY: %s (smoothed %" PRId32 "/1000, %s) | pre %" PRIu32
                      " us, NPU %" PRIu32 " us, post %" PRIu32 " us, frame %" PRIu32 " us\n",
