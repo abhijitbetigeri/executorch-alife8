@@ -60,7 +60,7 @@ def mem32_cmd(addr: int, words: int) -> str:
 
 def savebin_cmd(path: str, addr: int, nbytes: int) -> str:
     """:returns: A Commander ``savebin`` line."""
-    return f"savebin {path}, 0x{addr:08X}, 0x{nbytes:X}"
+    return f"savebin {path} 0x{addr:08X} 0x{nbytes:X}"  # space-separated: this J-Link rejects the comma form
 
 
 @dataclass

@@ -93,7 +93,7 @@ echo "== boot area check: $BOOT_ADDR..+$BOOT_LEN vs backup ${BACKUP:-<none>}"
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/board-flash.XXXXXX")
 trap 'rm -rf "$TMPD"' EXIT
 READBACK="$TMPD/boot_readback.bin"
-run_jlink "$(printf 'connect\nsavebin %s, %s, %s\nexit\n' "$READBACK" "$BOOT_ADDR" "$BOOT_LEN")" "boot-area read (core keeps running)" || true
+run_jlink "$(printf 'connect\nsavebin %s %s %s\nexit\n' "$READBACK" "$BOOT_ADDR" "$BOOT_LEN")" "boot-area read (core keeps running)" || true
 BOOT_OK=1
 if ((DRY)); then
     echo "(dry run: comparison skipped)"

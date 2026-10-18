@@ -947,11 +947,18 @@ namespace app {
         DumpTensor(modelOutput1);
 #endif /* VERIFY_TEST_OUTPUT */
 
+#if defined(MLEK_FWK_EXECUTORCH) && ET_TASK_CLASSIFY
+        /* CLASSIFY: no per-frame console output. The blocking UART prints of the results and the
+         * profiler cost tens of ms per frame; the LCD footer and the J-Link-readable globals
+         * (g_cls*, g_clsPerfUs) carry the same information. */
+        (void)profiler;
+#else
         if (!PresentInferenceResult(results)) {
             return false;
         }
 
         profiler.PrintProfilingResult();
+#endif
 
         return true;
     }
