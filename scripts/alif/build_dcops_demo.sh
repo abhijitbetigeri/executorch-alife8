@@ -45,7 +45,7 @@ cmake -S "$ROOT" -B "$BUILD" -G Ninja \
     -Dalif_object_detection_KWS_MODEL_PATH="$KWS/dcops/dscnn_m_agc_ethos-u85-256.pte" \
     -Dalif_object_detection_KWS_LABELS="$KWS/labels/micronet_kws_labels.txt" \
     -Dalif_object_detection_KWS_ACTIVATION_BUF_SZ=0x00020000 \
-    -Dalif_object_detection_KWS_THRESHOLD=0.7
+    -Dalif_object_detection_KWS_THRESHOLD="${KWS_THRESHOLD:-0.5}"
 cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
 AXF="$BUILD/bin/mlek_alif_object_detection.axf"

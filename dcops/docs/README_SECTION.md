@@ -73,7 +73,7 @@ Manual build: the classify build plus these options (see `source/app/use_case/al
 | `-Dalif_object_detection_CLS_EMA_ALPHA` | `0.3` (default) | EMA weight of the newest frame |
 | `-Dalif_object_detection_ENABLE_VOICE` | `ON` | second `.pte`: keyword spotter |
 | `-Dalif_object_detection_KWS_MODEL_PATH` | `resources/kws/dcops/dscnn_m_agc_ethos-u85-256.pte` | DS-CNN |
-| `-Dalif_object_detection_KWS_THRESHOLD` | `0.7` (default) | averaged softmax needed to fire |
+| `-Dalif_object_detection_KWS_THRESHOLD` | `0.5` (demo build; default 0.7) | averaged softmax needed to fire |
 | `-Dalif_object_detection_KWS_ACTIVATION_BUF_SZ` | `0x00020000` (default) | KWS arena, 128 KB |
 
 Info cards come from `dcops/dc_components.json` by default (`CLS_KNOWLEDGE_BASE`).

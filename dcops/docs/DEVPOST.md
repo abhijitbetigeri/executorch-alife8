@@ -35,7 +35,8 @@ export, the two-model E8 firmware and the voice workflow.
 
 | Say | Action |
 |---|---|
-| `go` | Latch the identified part and open its inspection checklist. The live label freezes. Only works when vision has a confident identification. |
+| `go` (or `yes` / `on`) | Latch the identified part and open its inspection checklist. The live label freezes. Only works when vision has a confident identification. |
+| `go` / `on` / `right` while holding | Next knowledge page: specs, troubleshooting, LED status, maintenance. `left` goes back. |
 | `yes` | Mark the selected item pass and advance. |
 | `no` | Mark it fail and advance. On item 1 ("is this the right part?"), `no` rejects the identification and returns to scanning. |
 | `up` / `down` | Move the cursor. |
@@ -163,7 +164,7 @@ per-instance method (`source/lib/mlek/fwk/executorch/EtModel.cc/.hpp`).
 MT9M114 --MIPI/CPI+DMA--> SRAM frame --M55 HP: crop, resize--> 160x160 RGB
    --M55 HP: float NHWC [0,1]--> [int8 quantize, M55] --Ethos-U85-256: MobileNetV2 (all ops)--> [dequantize, M55]
    --M55 HP: softmax + EMA (alpha 0.3), gate 0.5--> info card (dc_components.json) --> LVGL --> LCD
-PDM mic --background--> M55 HP: MFCC 49x10 --Ethos-U85: DS-CNN, every 0.5 s--> threshold 0.7 --> voice UI
+PDM mic --background--> M55 HP: MFCC 49x10 --Ethos-U85: DS-CNN, every 0.5 s--> threshold 0.5 --> voice UI
 ```
 
 | Workload | Runs on | Cost |

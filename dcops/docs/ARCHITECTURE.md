@@ -19,7 +19,7 @@ flowchart LR
     CARD[info card lookup<br/>title, summary, specs]
     UI[LVGL UI + voice state machine]
     MFCC[MFCC 49x10, MLEK Mfcc.cc<br/>3.3-4.0 ms]
-    KTH[threshold 0.7]
+    KTH[threshold 0.5]
   end
   subgraph NPU["Ethos-U85-256 (attached to HP)"]
     CLS[MobileNetV2 student<br/>100% of ops, 7.9-8.0 ms]
@@ -57,7 +57,8 @@ path; after that change: frame 124 ms, 8.0 FPS on the LCD footer (was 274 ms, 3.
 
 | Keyword | Action |
 |---|---|
-| `go` | Latch the identified part, open its inspection checklist; live label freezes. Only accepted when vision has a confident identification. |
+| `go` (or `yes` / `on`) | Latch the identified part, open its inspection checklist; live label freezes. Only accepted when vision has a confident identification. |
+| `go` / `on` / `right` while holding | Next knowledge page: specs, troubleshooting, LED status, maintenance. `left` goes back. |
 | `yes` | Mark selected item pass, advance. |
 | `no` | Mark fail, advance. On item 1 ("is this the right part?") reject the identification and return to scanning. |
 | `up` / `down` | Move cursor. |
