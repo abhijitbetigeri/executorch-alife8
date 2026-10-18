@@ -4,6 +4,7 @@ Offline data-center component identifier for the Alif Ensemble E8 DevKit: a came
 voice keyword spotter, two ExecuTorch models on the Ethos-U85. Built for the Arm + ExecuTorch Edge AI
 Challenge (October 2026).
 
+- **Landing page and slides: [https://abhijitbetigeri.github.io/executorch-alife8/](https://abhijitbetigeri.github.io/executorch-alife8/)** (DCSM-Simplified: DataCenter Service Management, Simplified)
 - Build, flash, run: [dcops/docs/README_SECTION.md](dcops/docs/README_SECTION.md)
 - Architecture and results: [dcops/docs/ARCHITECTURE.md](dcops/docs/ARCHITECTURE.md), [dcops/docs/RESULTS.md](dcops/docs/RESULTS.md)
 - Trained models: [abhijitbetigeri/dcops-e8](https://huggingface.co/abhijitbetigeri/dcops-e8) on Hugging Face

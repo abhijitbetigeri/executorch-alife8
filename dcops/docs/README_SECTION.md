@@ -33,6 +33,7 @@ model-input frames while a phone shows a clock-synced slideshow; `build_ft_data.
 `build_deck2.py` turn captures into a labelled, slide-split dataset).
 
 Dataset: [`dcops/data/`](../data/README.md) in this repo (component photos and board-camera captures).
+Landing page and slides: https://abhijitbetigeri.github.io/executorch-alife8/
 Trained models (deployed, ablations, teachers): [abhijitbetigeri/dcops-e8](https://huggingface.co/abhijitbetigeri/dcops-e8) on Hugging Face.
 
 ### 2. Export to ExecuTorch for the Ethos-U85-256
