@@ -10,7 +10,9 @@ CLASSES = ["server rack", "compute tray", "NVLink switch tray", "network switch"
 
 X, Y, G = [], [], []
 gid = 0
-for f in sorted(glob.glob(f"{HERE}/frames/*.npz")):
+# new captures land in frames/; the captures used for the deployed model are in dcops/data/board_captures/
+FILES = sorted(glob.glob(f"{HERE}/frames/*.npz")) or sorted(glob.glob(f"{HERE}/../data/board_captures/*.npz"))
+for f in FILES:
     d = np.load(f); prev = None; prev_y = None
     sid = d["slide_ids"] if "slide_ids" in d.files else np.full(len(d["labels"]), -1)
     keep = d["keep"] if "keep" in d.files else np.ones(len(d["labels"]), bool)  # hand-marked: phone in view
@@ -38,7 +40,7 @@ print("board frames", len(Y), "train", int((S == "train").sum()), "test", int((S
 print("per class", {CLASSES[c]: int((Y == c).sum()) for c in sorted(set(Y.tolist()))})
 
 # replay: human-labelled training crops (and background) at the model resolution
-root = os.path.expanduser("~/projects/DC-Ops/data/merged_dataset/train")
+root = os.path.join(HERE, "../data/dc_components/train")
 random.seed(0); per_cls = {}
 labs = sorted(glob.glob(f"{root}/labels/*.txt")); random.shuffle(labs)
 RX, RY = [], []

@@ -15,7 +15,7 @@ DEMO = [4, 6, 9, 12, 13]          # power shelf, network port, fan, power connec
 PER = 30
 out = sys.argv[1]
 os.makedirs(f"{out}/s2", exist_ok=True)
-root = os.path.expanduser("~/projects/DC-Ops/data/merged_dataset/train")
+root = os.path.join(HERE, "../data/dc_components/train")
 random.seed(2)
 labs = sorted(glob.glob(f"{root}/labels/*.txt")); random.shuffle(labs)
 picked = {c: [] for c in DEMO}

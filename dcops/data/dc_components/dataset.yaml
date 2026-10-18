@@ -1,0 +1,20 @@
+names:
+  0: server rack
+  1: compute tray
+  2: NVLink switch tray
+  3: network switch
+  4: power shelf
+  5: cable
+  6: network port
+  7: LED indicator
+  8: label
+  9: fan
+  10: cooling manifold
+  11: cable cartridge
+  12: power connector
+  13: drive bay
+  14: management port
+  15: DPU
+path: .
+train: train/images
+val: val/images
