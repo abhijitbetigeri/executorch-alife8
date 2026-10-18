@@ -91,7 +91,7 @@ Measured with the earlier `v2` vision model (same architecture as deployed).
 | NPU share of frame | ~3 % |
 | KWS MFCC (M55) | 3.3–4.0 ms |
 | KWS DS-CNN (NPU) | 0.34 ms, 2 strides/s |
-| FPS after removing per-frame UART logging | `TODO(measure)`: read the LCD footer on the flashed build |
+| After removing per-frame UART logging (judged build) | **124 ms / 8.0 FPS** (was 274 ms / 3.6 FPS, 2.2x); NPU 7.9 ms; KWS MFCC 3.3 ms + NPU 0.3 ms |
 | power | `TODO(measure)`: not measured; needs a USB power meter or the power use case |
 | MRAM image end | 0x805473C4 (limit 0x80578000) -> ~195 KB headroom |
 | KWS activation buffer | 0x20000 (128 KB) |

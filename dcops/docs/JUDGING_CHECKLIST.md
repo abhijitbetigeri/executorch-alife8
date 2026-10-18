@@ -31,11 +31,11 @@ Evidence:
 | int8 vs float top-1 | 98.4% agreement |
 | MRAM headroom | ~195 KB |
 
-- NPU is ~3% of the frame; bottleneck identified (camera, LCD/LVGL, UART logging).
+- NPU is ~6% of the 124 ms frame (was ~3% of 274 ms); bottleneck identified and the UART part removed; camera capture and LCD/LVGL remain. Same speed with or without a part on screen.
 - Optimisation done: per-frame UART printing removed from the classify path.
 
 Gaps:
-- FPS after the UART change: `TODO(measure)`. Read the LCD footer on the flashed build.
+- After the UART change: frame 124 ms, 8.0 FPS on the LCD footer (was 274 ms, 3.6 FPS): 2.2x faster. NPU stays 7.9 ms, so the NPU is now about 6% of the frame.
 - Power: `TODO(measure)`. Not measured; needs a USB power meter or the power use case.
 
 ## Effective use of hardware (15)

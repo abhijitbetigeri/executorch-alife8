@@ -14,7 +14,7 @@ The demo works on the board. What remains is one FPS reading, the video, the tag
 - **Docs** (`dcops/docs/`): Devpost text, architecture, results, demo run sheet, judging checklist, README section.
 
 ## To do
-1. Read FPS from the LCD footer on the current build: `TODO(measure)` in `DEVPOST.md`, `RESULTS.md`, `ARCHITECTURE.md`, `DEMO_SCRIPT.md`, `JUDGING_CHECKLIST.md`.
+1. Done: judged build reads frame 124 ms, 8.0 FPS (was 274 ms, 3.6 FPS).
 2. Record the backup demo video: `TODO(record)`.
 3. Commit `scripts/alif/build_dcops_demo.sh` (being added) and the docs; tag the judged commit: `TODO(tag)`.
 4. Team names on Devpost: `TODO(names)`.

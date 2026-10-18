@@ -49,9 +49,9 @@ loaded at once.
 | HE core (M55 + Ethos-U55) | unused | next step: always-on KWS, not built |
 
 Full frame: 255–287 ms (3.5–3.9 FPS; LCD footer 274 ms / 3.6 FPS), measured with the earlier v2
-vision model (same architecture). The NPU is about 3% of the frame. Camera capture, LCD/LVGL and
+vision model (same architecture). The NPU was about 3% of the 274 ms frame and is about 6% of the 124 ms frame now. Camera capture, LCD/LVGL and
 per-frame UART logging dominate. Per-frame UART printing has since been removed from the classify
-path; FPS after that change: `TODO(measure)` (read the LCD footer).
+path; after that change: frame 124 ms, 8.0 FPS on the LCD footer (was 274 ms, 3.6 FPS): 2.2x faster.
 
 ### Voice workflow
 

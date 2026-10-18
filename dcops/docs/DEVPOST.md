@@ -68,10 +68,10 @@ export, the two-model E8 firmware and the voice workflow.
 | Vision preprocessing (M55) | 1.75 ms |
 | Full frame | 255–287 ms (3.5–3.9 FPS); LCD footer 274 ms / 3.6 FPS |
 | KWS MFCC (M55) / DS-CNN (NPU) | 3.3–4.0 ms / 0.34 ms, 2 strides/s |
-| FPS after removing per-frame UART logging | `TODO(measure)`: read the LCD footer on the flashed build |
+| After removing per-frame UART logging (judged build) | **124 ms / 8.0 FPS** (was 274 ms / 3.6 FPS, 2.2x); NPU 7.9 ms; KWS MFCC 3.3 ms + NPU 0.3 ms |
 | Power | `TODO(measure)`: not measured (needs a USB power meter or the power use case) |
 
-- The NPU is about 3% of the frame. Camera capture, LCD/LVGL and per-frame UART logging dominate.
+- Frame time dropped from 274 ms to 124 ms (3.6 to 8.0 FPS) by removing per-frame UART logging; it stays the same whether or not a part is on screen. The NPU is about 6% of the frame; camera capture and LCD/LVGL dominate.
 - First optimisation done: per-frame UART result/profiler printing removed from the classify path.
 - Models are small: vision .pte 2,301 KB, KWS .pte 93 KB (79,116 params).
 - int8 costs almost nothing: int8/float top-1 agreement 98.4% on calibration frames.
@@ -179,7 +179,7 @@ PDM mic --background--> M55 HP: MFCC 49x10 --Ethos-U85: DS-CNN, every 0.5 s--> t
 
 Why this split: the NPU takes the dense convolutions. The M55 keeps camera geometry, MFCC,
 softmax and UI, plus the int8 boundary. The classifier is small enough to fit the HP MRAM
-partition with ~195 KB to spare and keeps NPU time at about 3% of the frame.
+partition with ~195 KB to spare and keeps NPU time at about 6% of the frame.
 
 ## Results
 

@@ -25,7 +25,7 @@
 | 0:55 | Say **"yes"** | "Next item, an LED check from the knowledge base, passes." |
 | 1:00 | Say **"no"** | "This one fails: the border turns red. A 'no' on item 1 would reject the identification and go back to scanning: a human correcting the model." |
 | 1:05 | Say **"stop"** | "Back to live scanning. The keyword spotter runs on the same NPU: MFCC on the M55 in 3–4 ms, DS-CNN in 0.34 ms." |
-| 1:15 | Point at the LCD footer / perf table | "Vision inference is 8 ms on the NPU. The whole frame is about 274 ms, 3.6 FPS. The NPU is 3% of that; camera and display are the bottleneck. Both models, 100% of ops on the U85, one image, 195 KB of MRAM to spare." |
+| 1:15 | Point at the LCD footer / perf table | "Vision inference is 8 ms on the NPU. The whole frame is 124 ms, 8 FPS, down from 274 ms after we cut per-frame logging. The NPU is 6% of that; camera and display are the bottleneck. Both models, 100% of ops on the U85, one image, 195 KB of MRAM to spare." |
 | 1:35 | Show the training diagram | "Our phone detector labelled crops for ConvNeXt teachers, then a MobileNetV2 student. Then we recorded the board camera's own frames against a clock-synced slideshow, no network, and fine-tuned: held-out board accuracy 35.5 to 73 percent." |
 | 1:55 | Close | "Offline, NPU-accelerated, voice-driven. Questions?" |
 
@@ -52,5 +52,5 @@ tray, cooling manifold and DPU were confused, and 8 classes had no board-camera 
 
 - Preferred: the LCD footer (frame ms / FPS) plus the table in `DEVPOST.md` / `RESULTS.md`.
 - Measured: vision NPU 7.9–8.0 ms, preprocessing 1.75 ms, frame 255–287 ms (3.5–3.9 FPS),
-  KWS MFCC 3.3–4.0 ms + DS-CNN 0.34 ms. FPS after the UART-logging removal: `TODO(measure)`.
+  KWS MFCC 3.3–4.0 ms + DS-CNN 0.34 ms. After removing per-frame UART logging: frame 124 ms, 8.0 FPS on the LCD footer (was 274 ms, 3.6 FPS): 2.2x faster.
 - Power is not measured. Say so if asked.
