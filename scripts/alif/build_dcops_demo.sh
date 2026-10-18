@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Builds the judged DCSM-Simplified firmware: camera classifier + voice keywords in one HP image.
-#   vision: resources/object_detection/dcops/dcops_v3_board_ft_ethos-u85-256.pte (board-camera fine-tune)
+#   vision: resources/object_detection/dcops/dcops_v4_demo_ft_ethos-u85-256.pte (board-camera fine-tune; VISION_PTE overrides)
 #   voice:  resources/kws/dcops/dscnn_m_agc_ethos-u85-256.pte
 #   shown classes: power shelf, network port, fan, power connector, drive bay (+ background)
 #
@@ -35,11 +35,11 @@ cmake -S "$ROOT" -B "$BUILD" -G Ninja \
     -DALIF_CAMERA_ENABLED=ON -DALIF_ISP_ENABLED=OFF \
     -DUSE_CASE_BUILD=alif_object_detection \
     -Dalif_object_detection_ET_TASK=CLASSIFY \
-    -Dalif_object_detection_MODEL_PATH="$VISION/dcops_v3_board_ft_ethos-u85-256.pte" \
+    -Dalif_object_detection_MODEL_PATH="$VISION/${VISION_PTE:-dcops_v4_demo_ft_ethos-u85-256.pte}" \
     -Dalif_object_detection_CLASS_LABELS="$VISION/labels.txt" \
     -Dalif_object_detection_ACTIVATION_BUF_SZ=0x00180000 \
     -Dalif_object_detection_CLS_EMA_ALPHA=0.3 \
-    -Dalif_object_detection_CLS_CONF_THRESHOLD=0.5 \
+    -Dalif_object_detection_CLS_CONF_THRESHOLD="${CLS_CONF_THRESHOLD:-0.6}" \
     -Dalif_object_detection_CLS_ALLOWED_MASK="$MASK" \
     -Dalif_object_detection_ENABLE_VOICE=ON \
     -Dalif_object_detection_KWS_MODEL_PATH="$KWS/dcops/dscnn_m_agc_ethos-u85-256.pte" \

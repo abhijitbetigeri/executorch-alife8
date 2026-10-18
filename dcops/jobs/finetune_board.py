@@ -39,6 +39,9 @@ def main():
     ap.add_argument("--board-weight", type=float, default=0.6, help="share of each batch from board frames")
     ap.add_argument("--batch", type=int, default=96)
     ap.add_argument("--res", type=int, default=160)
+    ap.add_argument("--classes", default="4,6,9,12,13,16",
+                    help="class ids the demo firmware shows (CLS_ALLOWED_MASK); training and scoring "
+                         "compare only these. 'all' = every class")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
     d = np.load(a.data, allow_pickle=True)
@@ -50,6 +53,13 @@ def main():
     model = StudentNHWC(nc, a.res, pretrained=False).to(dev)
     model.load_state_dict(torch.load(a.init, map_location="cpu"))
     BX, RX = torch.from_numpy(bx), torch.from_numpy(rx)
+    keep = list(range(nc)) if a.classes == "all" else [int(c) for c in a.classes.split(",")]
+    mask = torch.full((nc,), -1e4, device=dev); mask[keep] = 0  # logits of hidden classes never win
+    keep_t = torch.tensor(keep, device=dev)
+    remap = torch.full((nc,), -1, dtype=torch.long, device=dev); remap[keep_t] = torch.arange(len(keep), device=dev)
+    btr = btr[np.isin(by[btr], keep)]; bte = bte[np.isin(by[bte], keep)]
+    rsel = np.where(np.isin(ry, keep))[0]
+    log(f"classes {[classes[c] for c in keep]}; board train {len(btr)} test {len(bte)}; replay {len(rsel)}")
 
     def to_in(x, train):
         x = x.to(dev).permute(0, 3, 1, 2).float() / 255
@@ -65,7 +75,7 @@ def main():
         model.eval(); pred = []
         with torch.no_grad():
             for i in range(0, len(idx), 128):
-                pred.append(model(to_in(BX[idx[i:i + 128]], False).permute(0, 2, 3, 1).contiguous()).argmax(1).cpu().numpy())
+                pred.append((model(to_in(BX[idx[i:i + 128]], False).permute(0, 2, 3, 1).contiguous()) + mask).argmax(1).cpu().numpy())
         model.train()
         pred = np.concatenate(pred) if pred else np.array([], int)
         return pred, float((pred == by[idx]).mean()) if len(idx) else float("nan")
@@ -82,12 +92,12 @@ def main():
     best, best_state, hist = -1, None, []
     for ep in range(a.epochs):
         for _ in range(spe):
-            ib = rng.choice(btr, nb, p=pb); ir = rng.choice(len(ry), nr)
+            ib = rng.choice(btr, nb, p=pb); ir = rng.choice(rsel, nr)
             xb = to_in(BX[ib], True)
             xr = board_camera_aug(to_in(RX[ir], True))  # replay crops look like the board camera too
             x = torch.cat([xb, xr]).permute(0, 2, 3, 1).contiguous()
             y = torch.from_numpy(np.concatenate([by[ib], ry[ir]])).to(dev)
-            loss = F.cross_entropy(model(x), y, label_smoothing=0.1)
+            loss = F.cross_entropy(model(x)[:, keep_t], remap[y], label_smoothing=0.1)  # softmax over shown classes
             opt.zero_grad(); loss.backward(); opt.step(); sched.step()
         _, acc = evaluate(bte)
         hist.append({"epoch": ep + 1, "loss": float(loss), "board_test_acc": acc})

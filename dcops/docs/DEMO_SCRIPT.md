@@ -2,7 +2,7 @@
 
 ## Before judges arrive (T-10 min)
 
-- [ ] Demo firmware built with `scripts/alif/build_dcops_demo.sh` (mask 0x13250, cutoff 0.5) and
+- [ ] Demo firmware built with `scripts/alif/build_dcops_demo.sh` (mask 0x13250, cutoff 0.6) and
       flashed with `scripts/alif/flash_e8_hp.sh`.
 - [ ] **Power-cycle**: unplug PRG USB about 10 s. The camera hangs after a J-Link reset. If camera
       init fails, LED1 blinks: power-cycle again.
@@ -31,7 +31,7 @@
 
 If asked "why only 5 classes": the model has 16 + background. Through the board camera, compute
 tray, cooling manifold and DPU were confused, and 8 classes had no board-camera data. We show the
-5 the board camera separates reliably, measured on held-out slides: 73% correct, 6% wrong, rest blank.
+5 the board camera separates reliably, measured on held-out slides: 79% correct, 7% wrong, rest blank.
 
 ## Fallbacks
 

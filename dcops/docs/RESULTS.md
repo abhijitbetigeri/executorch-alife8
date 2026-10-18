@@ -29,7 +29,7 @@ Wave 1 (rows without `v2_`) is scored on noisy auto labels; wave 2 on the human-
 Ablations (wave 2): board-camera augmentation 0.913 vs 0.758 on board-like images (`v2_r160_kd` vs `v2_r160_noaug`); distillation 0.913 vs 0.804 (`v2_r160_kd` vs `v2_r160_nokd`). Board-sim scores are a single random draw per evaluation, so differences of a few points are noise.
 Resolution sweep (wave 1): 128 px 0.581, 160 px 0.653, 192 px 0.632. We kept 160 px.
 
-## Board-camera fine-tune (`v3_board_ft`, deployed)
+## Board-camera fine-tune (`v3_board_ft`, then `v4_demo_ft`, deployed)
 
 Data: the E8 camera's own model-input frames, recorded over J-Link while a phone showed a clock-synced slideshow (labels from the clock, no network link).
 
@@ -48,6 +48,7 @@ Training: 25 epochs, lr 3e-4, 60 % board frames per batch.
 | ceiling capture (discarded: camera framed wrong) | 0 % -> 2.4 % |
 | first good deck-1 run | 30.7 % -> 64.6 % |
 | **v3_board_ft (deck 1 x2 + deck 2 + background)** | **35.5 % -> 73.0 %** |
+| **v4_demo_ft** (same data, loss and scoring over the 6 shown classes) | 6-way top-1 on held-out demo-class frames: 51.3 % -> **84.8 %** (v3: 83.5 %) |
 
 ### Demo mask (5 classes + background, held-out board frames)
 
@@ -55,7 +56,8 @@ Training: 25 epochs, lr 3e-4, 60 % board frames per batch.
 
 | cutoff | component frames correct | wrong | blank | background frames given a label |
 |---|---|---|---|---|
-| **0.5 (demo)** | 73 % | 6 % | rest | 0 % |
+| 0.5 (`v3_board_ft`) | 73 % | 6 % | rest | 0 % |
+| **0.6 (`v4_demo_ft`, demo build)** | **79 %** | **7 %** | rest | **0 %** |
 | 0.35 | 78 % | 11 % | rest | |
 
 Clean held-out photos (dataset val split, 5 classes, PC): 25/28 correct.

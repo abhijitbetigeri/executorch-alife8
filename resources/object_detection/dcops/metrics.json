@@ -1,36 +1,37 @@
 {
-  "name": "v3_board_ft",
+  "name": "v4_demo_ft",
   "args": {
     "data": "/root/.cache/huggingface/hub/datasets--abhijitbetigeri--dcops-e8-crops/snapshots/a65d9610735124dab7641c9e26718fb0f0ad15d7/board_ft.npz",
-    "init": "/root/.cache/huggingface/hub/models--abhijitbetigeri--dcops-e8-student/snapshots/2ee9d7850e631802710308286ebb9c2f665f503d/vision/v2_r160_kd/student.pt",
+    "init": "/root/.cache/huggingface/hub/models--abhijitbetigeri--dcops-e8-student/snapshots/e002b6bd39fcdf40138282e8cf2106af69296592/vision/v2_r160_kd/student.pt",
     "out": "/content/v3_board_ft",
     "epochs": 25,
     "lr": 0.0003,
     "board_weight": 0.6,
     "batch": 96,
-    "res": 160
+    "res": 160,
+    "classes": "4,6,9,12,13,16"
   },
-  "val_acc": 0.7298578199052133,
-  "val_acc_board_sim": 0.7298578199052133,
+  "val_acc": 0.8481012658227848,
+  "val_acc_board_sim": 0.8481012658227848,
   "metric": "board-camera frames of held-out slides",
-  "board_test_acc_before": 0.35545023696682465,
+  "board_test_acc_before": 0.5126582278481012,
   "per_class_acc": {
     "server rack": null,
-    "compute tray": 0.6666666666666666,
+    "compute tray": null,
     "NVLink switch tray": null,
     "network switch": null,
     "power shelf": 1.0,
     "cable": null,
-    "network port": 0.17142857142857143,
+    "network port": 0.4,
     "LED indicator": null,
     "label": null,
     "fan": 1.0,
-    "cooling manifold": 0.41379310344827586,
+    "cooling manifold": null,
     "cable cartridge": null,
     "power connector": 1.0,
     "drive bay": 0.8125,
     "management port": null,
-    "DPU": 0.6666666666666666,
+    "DPU": null,
     "background": 1.0
   },
   "confusion": [
@@ -55,10 +56,10 @@
     ],
     [
       0,
-      12,
       0,
       0,
-      6,
+      0,
+      0,
       0,
       0,
       0,
@@ -150,21 +151,21 @@
     ],
     [
       0,
-      5,
       0,
       0,
       0,
-      0,
-      6,
-      0,
-      0,
-      4,
-      0,
-      0,
-      6,
       0,
       0,
       14,
+      0,
+      0,
+      2,
+      0,
+      0,
+      16,
+      3,
+      0,
+      0,
       0
     ],
     [
@@ -226,21 +227,21 @@
     ],
     [
       0,
-      3,
       0,
       0,
       0,
       0,
-      3,
       0,
       0,
       0,
-      12,
       0,
-      3,
-      6,
       0,
-      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0
     ],
     [
@@ -282,6 +283,9 @@
       0
     ],
     [
+      0,
+      0,
+      0,
       0,
       0,
       0,
@@ -291,9 +295,6 @@
       1,
       0,
       0,
-      0,
-      0,
-      0,
       2,
       13,
       0,
@@ -330,12 +331,12 @@
       0,
       0,
       0,
-      2,
       0,
       0,
       0,
       0,
-      4,
+      0,
+      0,
       0
     ],
     [
@@ -361,131 +362,131 @@
   "history": [
     {
       "epoch": 1,
-      "loss": 1.497412919998169,
-      "board_test_acc": 0.44549763033175355
+      "loss": 1.0982723236083984,
+      "board_test_acc": 0.6075949367088608
     },
     {
       "epoch": 2,
-      "loss": 1.1639535427093506,
-      "board_test_acc": 0.5402843601895735
+      "loss": 0.7993581891059875,
+      "board_test_acc": 0.7151898734177216
     },
     {
       "epoch": 3,
-      "loss": 0.8583625555038452,
-      "board_test_acc": 0.6492890995260664
+      "loss": 0.6902450323104858,
+      "board_test_acc": 0.7531645569620253
     },
     {
       "epoch": 4,
-      "loss": 0.7064340114593506,
-      "board_test_acc": 0.6492890995260664
+      "loss": 0.5047100186347961,
+      "board_test_acc": 0.8354430379746836
     },
     {
       "epoch": 5,
-      "loss": 0.6558040976524353,
-      "board_test_acc": 0.7014218009478673
+      "loss": 0.46034514904022217,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 6,
-      "loss": 0.6653813123703003,
-      "board_test_acc": 0.6966824644549763
+      "loss": 0.48128512501716614,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 7,
-      "loss": 0.7067157030105591,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.4619167745113373,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 8,
-      "loss": 0.6410261988639832,
-      "board_test_acc": 0.7203791469194313
+      "loss": 0.5004215836524963,
+      "board_test_acc": 0.8037974683544303
     },
     {
       "epoch": 9,
-      "loss": 0.6012848019599915,
-      "board_test_acc": 0.7251184834123223
+      "loss": 0.4587061405181885,
+      "board_test_acc": 0.810126582278481
     },
     {
       "epoch": 10,
-      "loss": 0.6265785098075867,
-      "board_test_acc": 0.7298578199052133
+      "loss": 0.4403736889362335,
+      "board_test_acc": 0.8354430379746836
     },
     {
       "epoch": 11,
-      "loss": 0.591056227684021,
-      "board_test_acc": 0.6966824644549763
+      "loss": 0.438872754573822,
+      "board_test_acc": 0.8354430379746836
     },
     {
       "epoch": 12,
-      "loss": 0.6292024850845337,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.48328521847724915,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 13,
-      "loss": 0.59745192527771,
-      "board_test_acc": 0.6824644549763034
+      "loss": 0.4577491879463196,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 14,
-      "loss": 0.6177603006362915,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.46054089069366455,
+      "board_test_acc": 0.8354430379746836
     },
     {
       "epoch": 15,
-      "loss": 0.6677042841911316,
-      "board_test_acc": 0.6919431279620853
+      "loss": 0.45704013109207153,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 16,
-      "loss": 0.6068016290664673,
-      "board_test_acc": 0.7014218009478673
+      "loss": 0.4475606083869934,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 17,
-      "loss": 0.5990784764289856,
-      "board_test_acc": 0.7014218009478673
+      "loss": 0.48725104331970215,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 18,
-      "loss": 0.6556423902511597,
-      "board_test_acc": 0.6966824644549763
+      "loss": 0.43067023158073425,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 19,
-      "loss": 0.604351282119751,
-      "board_test_acc": 0.7156398104265402
+      "loss": 0.42959004640579224,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 20,
-      "loss": 0.6209377646446228,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.4368016719818115,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 21,
-      "loss": 0.6316492557525635,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.4388774335384369,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 22,
-      "loss": 0.6245989799499512,
-      "board_test_acc": 0.7109004739336493
+      "loss": 0.45610806345939636,
+      "board_test_acc": 0.8481012658227848
     },
     {
       "epoch": 23,
-      "loss": 0.5995995998382568,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.4436603784561157,
+      "board_test_acc": 0.8481012658227848
     },
     {
       "epoch": 24,
-      "loss": 0.5954481363296509,
-      "board_test_acc": 0.7061611374407583
+      "loss": 0.4315350651741028,
+      "board_test_acc": 0.8417721518987342
     },
     {
       "epoch": 25,
-      "loss": 0.5869325995445251,
-      "board_test_acc": 0.7109004739336493
+      "loss": 0.4457610249519348,
+      "board_test_acc": 0.8481012658227848
     }
   ],
-  "n_board_train": 1119,
-  "n_board_test": 211,
+  "n_board_train": 869,
+  "n_board_test": 158,
   "n_replay": 1503
 }
