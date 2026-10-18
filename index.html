@@ -131,6 +131,11 @@ table.data td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .parts { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
 .parts .box { background: var(--panel-2); border-radius: 14px; padding: 24px; min-width: 0; }
 @media (max-width: 900px) { .parts { grid-template-columns: 1fr; } }
+.demo { display: grid; grid-template-columns: minmax(0, 380px) 1fr; gap: 40px; align-items: center; margin-top: 32px; }
+.demo video { width: 100%; border-radius: 14px; border: 1px solid var(--line); background: #000; display: block; }
+.demo ol { color: var(--soft); padding-left: 22px; margin: 16px 0 0; }
+.demo ol li + li { margin-top: 8px; }
+@media (max-width: 900px) { .demo { grid-template-columns: 1fr; } .demo video { max-width: 380px; } }
 footer { border-top: 1px solid var(--line); padding: 48px 0 64px; color: var(--dim); font-size: 14px; }
 footer .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 footer a { color: var(--soft); }
@@ -148,7 +153,7 @@ footer a { color: var(--soft); }
 <nav class="top"><div class="wrap">
   <a class="brand" href="#top"><span class="led"></span>DCSM-Simplified</a>
   <div class="links">
-    <a href="#how">How it works</a><a href="#slides">Slides</a><a href="#hood">Under the hood</a><a href="#next">Roadmap</a>
+    <a href="#demo">Demo</a><a href="#how">How it works</a><a href="#slides">Slides</a><a href="#hood">Under the hood</a><a href="#next">Roadmap</a>
     <a href="https://github.com/abhijitbetigeri/executorch-alife8">GitHub ↗</a>
     <a href="https://huggingface.co/abhijitbetigeri/dcops-e8">Models ↗</a>
   </div>
@@ -161,7 +166,8 @@ footer a { color: var(--soft); }
     <p class="sub">DataCenter Service Management, Simplified</p>
     <p class="pitch">A handheld for the data-center floor that runs fully offline on the Alif Ensemble E8. Point the camera at a component and the Ethos-U85 NPU names it. Then your voice opens an inspection checklist and the part’s specs, troubleshooting and LED codes. No phone, no network, no cloud.</p>
     <div class="cta">
-      <a class="btn primary" href="#slides">View the slides</a>
+      <a class="btn primary" href="#demo">Watch the demo</a>
+      <a class="btn" href="#slides">View the slides</a>
       <a class="btn" href="https://github.com/abhijitbetigeri/executorch-alife8">Code on GitHub</a>
       <a class="btn" href="https://huggingface.co/abhijitbetigeri/dcops-e8">Models on Hugging Face</a>
     </div>
@@ -181,6 +187,24 @@ footer a { color: var(--soft); }
     <div class="stat" role="listitem"><b>2.4 MB</b><span>both int8 models, in on-chip MRAM</span></div>
   </div>
 </div>
+
+<section class="block" id="demo"><div class="wrap">
+  <p class="eyebrow">Demo</p>
+  <h2>Live on the Alif E8</h2>
+  <div class="demo">
+    <video controls playsinline preload="metadata" poster="assets/demo-poster.jpg" src="demo.mp4" aria-label="DCSM-Simplified demo video on the Alif E8 board"></video>
+    <div>
+      <p class="lead">Recorded on the board, unedited apart from trimming. Everything runs on the E8: camera, NPU, microphone and LCD.</p>
+      <ol>
+        <li>A fan is identified on the Ethos-U85.</li>
+        <li>“Yes” confirms it and opens the checklist.</li>
+        <li>“Go” pages through its specs, troubleshooting and LED meanings.</li>
+        <li>“Stop” returns to scanning: network port, another fan, power shelf, drive bay.</li>
+      </ol>
+      <p style="margin-top:18px"><a class="btn" href="demo.mp4">Download the video (MP4)</a></p>
+    </div>
+  </div>
+</div></section>
 
 <section class="block" id="how"><div class="wrap">
   <p class="eyebrow">How it works</p>
