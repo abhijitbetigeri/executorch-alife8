@@ -27,7 +27,13 @@
  * limitations under the License.
  */
 #include "mlek/use_case/kws/KwsClassifier.hpp"  /* Classifier. */
+#if defined(MLEK_FWK_EXECUTORCH)
+#include "mlek/fwk/executorch/DsCnnKwsModel.hpp"    /* DS-CNN .pte (float MFCC in, logits out). */
+using KwsModel = arm::app::fwk::et::DsCnnKwsModel;
+#else
 #include "mlek/fwk/tflm/MicroNetKwsModel.hpp"   /* Model class for running inference. */
+using KwsModel = arm::app::fwk::tflm::MicroNetKwsModel;
+#endif
 #include "hal.h"                                /* Brings in platform definitions. */
 #include "Labels.hpp"                           /* For label strings. */
 #include "UseCaseHandler.hpp"                   /* Handlers for different user options. */
@@ -51,7 +57,7 @@ void MainLoop()
 {
     init_trigger_tx();
 
-    arm::app::fwk::tflm::MicroNetKwsModel model;  /* Model wrapper object. */
+    KwsModel model;  /* Model wrapper object. */
 
     arm::app::fwk::iface::MemoryRegion modelMem{arm::app::kws::GetModelPointer(),
                                                 arm::app::kws::GetModelLen()};

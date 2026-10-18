@@ -26,8 +26,8 @@
 #----------------------------------------------------------------------------
 
 # Specify the ML frameworks the use case supports
-set(${use_case}_ML_FRAMEWORK "TensorFlowLiteMicro")
-if (NOT ${use_case}_ML_FRAMEWORK STREQUAL ${ML_FRAMEWORK})
+set(${use_case}_ML_FRAMEWORK "TensorFlowLiteMicro;ExecuTorch")
+if (NOT ${ML_FRAMEWORK} IN_LIST ${use_case}_ML_FRAMEWORK)
     set(${use_case}_supports_${ML_FRAMEWORK} OFF)
     return()
 endif ()
@@ -66,15 +66,28 @@ generate_labels_code(
     OUTPUT_FILENAME "${${use_case}_LABELS_CPP_FILE}"
 )
 
-USER_OPTION(${use_case}_ACTIVATION_BUF_SZ "Activation buffer size for the chosen model"
-    0x00020000
-    STRING)
+if (${ML_FRAMEWORK} STREQUAL "TensorFlowLiteMicro")
+    USER_OPTION(${use_case}_ACTIVATION_BUF_SZ "Activation buffer size for the chosen model"
+        0x00020000
+        STRING)
 
+    if (ETHOS_U_NPU_ENABLED)
+        set(DEFAULT_MODEL_PATH      ${RESOURCES_PATH}/kws/kws_micronet_m_vela_${ETHOS_U_NPU_CONFIG_ID}.tflite)
+    else()
+        set(DEFAULT_MODEL_PATH      ${RESOURCES_PATH}/kws/kws_micronet_m.tflite)
+    endif()
+elseif (${ML_FRAMEWORK} STREQUAL "ExecuTorch")
+    # DS-CNN keyword spotter exported with dcops/export/export_kws.py (ExecuTorch 1.1, Ethos-U85-256).
+    # Input float [1,1,49,10] MicroNetKwsMFCC features, output 12 float logits (labels order above).
+    # The default is a RANDOM-WEIGHT placeholder so the firmware builds before the trained model
+    # exists; pass -Dalif_kws_MODEL_PATH=<run>/kws_ethos-u85-256.pte for the real one.
+    set(DEFAULT_MODEL_PATH ${MLEK_ROOT}/dcops/models/placeholder/kws_random/kws_ethos-u85-256.pte)
 
-if (ETHOS_U_NPU_ENABLED)
-    set(DEFAULT_MODEL_PATH      ${RESOURCES_PATH}/kws/kws_micronet_m_vela_${ETHOS_U_NPU_CONFIG_ID}.tflite)
-else()
-    set(DEFAULT_MODEL_PATH      ${RESOURCES_PATH}/kws/kws_micronet_m.tflite)
+    # Method allocator: planned buffers (input/output/intermediates) + method metadata. DS-CNN(64)
+    # needs only tens of KiB; the Ethos-U scratch comes from ML_FWK_TMP_MEM_SIZE.
+    USER_OPTION(${use_case}_ACTIVATION_BUF_SZ "Activation buffer size for the chosen model"
+        0x00040000
+        STRING)
 endif()
 
 set(EXTRA_MODEL_CODE
@@ -85,9 +98,21 @@ set(EXTRA_MODEL_CODE
     "extern const float g_ScoreThreshold = ${${use_case}_MODEL_SCORE_THRESHOLD}"
     )
 
-USER_OPTION(${use_case}_MODEL_PATH "NN models file to be used in the evaluation application. Model files must be in tflite format."
+USER_OPTION(${use_case}_MODEL_PATH "NN models file to be used in the evaluation application. Model files must be in tflite or pte format."
     ${DEFAULT_MODEL_PATH}
     FILEPATH)
+
+if (COMMAND generate_pte_ops_lib)
+    generate_pte_ops_lib(
+        MODEL_PATH      "${${use_case}_MODEL_PATH}"     # Path to the model PTE
+        LIB_NAME        "${use_case}_portable_ops_lib"  # Library target name
+        SELECT_OPS_LIST "")                             # Always included ops list
+
+    # If the target is generated, request it to be linked for this use case.
+    if (TARGET ${use_case}_portable_ops_lib)
+        set(${use_case}_LINK_LIBS ${use_case}_portable_ops_lib)
+    endif()
+endif()
 
 # Generate model file
 generate_model_code(

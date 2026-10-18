@@ -38,13 +38,21 @@
 #include "mlek/use_case/kws/KwsClassifier.hpp"
 #include "mlek/use_case/kws/KwsProcessing.hpp"
 #include "mlek/use_case/kws/KwsResult.hpp"
+#if defined(MLEK_FWK_EXECUTORCH)
+#include "mlek/fwk/executorch/DsCnnKwsModel.hpp"
+using KwsModel = arm::app::fwk::et::DsCnnKwsModel;
+#else
 #include "mlek/fwk/tflm/MicroNetKwsModel.hpp"
+using KwsModel = arm::app::fwk::tflm::MicroNetKwsModel;
+#endif
 
 #if defined(GPIO_PROFILING)
 #include "board_utils.h"
 #endif
 
 #include <vector>
+#include <algorithm>
+#include <cmath>
 
 #ifdef SE_SERVICES_SUPPORT
 #include "services_lib_api.h"
@@ -66,7 +74,6 @@ using arm::app::ApplicationContext;
 using arm::app::fwk::iface::Model;
 using arm::app::KwsPreProcess;
 using arm::app::KwsPostProcess;
-using arm::app::fwk::tflm::MicroNetKwsModel;
 
 
 #define AUDIO_SAMPLES 16000 // 16k samples/sec, 1sec sample
@@ -92,6 +99,79 @@ using namespace arm::app::kws;
  * @return          true if successful, false otherwise.
  **/
 static bool PresentInferenceResult(const std::vector<arm::app::kws::KwsResult>& results);
+
+#if defined(MLEK_FWK_EXECUTORCH)
+#ifndef KWS_ET_SELFTEST
+#define KWS_ET_SELFTEST 1
+#endif
+
+static void PrintFloats(const char* tag, const float* v, size_t n)
+{
+    printf("%s", tag);
+    for (size_t i = 0; i < n; ++i) {
+        printf(" %.4f", static_cast<double>(v[i]));
+    }
+    printf("\n");
+}
+
+#if KWS_ET_SELFTEST
+/**
+ * Deterministic host-comparable checks, printed once at start-up (no microphone involved).
+ * dcops/export/kws_host_check.py computes the same two cases on the host:
+ *  A) model only: input[i] = ((i * 37) % 41) - 30 for i in [0, 490)  -> logits
+ *  B) MFCC + model: 1 s of int16 audio round(8000 sin(2pi 440 n/16k) + 4000 sin(2pi 1250 n/16k))
+ *     -> MicroNetKwsMFCC (float) -> frames 0 and 24, sum of all 490 features, logits
+ **/
+static bool RunEtSelfTest(Model& model, KwsPreProcess& preProcess, Profiler& profiler,
+                          int16_t* audioScratch, size_t audioLen)
+{
+    auto in  = model.GetInputTensor(0);
+    auto out = model.GetOutputTensor(0);
+    float* x = in->GetData<float>();
+    const size_t nIn = in->GetNumElements();
+    const size_t nOut = out->GetNumElements();
+    if (in->Type() != arm::app::fwk::iface::TensorType::FP32 ||
+        out->Type() != arm::app::fwk::iface::TensorType::FP32) {
+        printf_err("KWS self-test expects float32 input and output tensors\n");
+        return false;
+    }
+
+    for (size_t i = 0; i < nIn; ++i) {
+        x[i] = static_cast<float>(static_cast<int>((i * 37) % 41) - 30);
+    }
+    if (!RunInference(model, profiler)) {
+        return false;
+    }
+    PrintFloats("KWS_SELFTEST_A logits:", out->GetData<float>(), nOut);
+
+    if (audioLen < 16000) {
+        return false;
+    }
+    constexpr double kTwoPi = 6.283185307179586;
+    for (size_t n = 0; n < 16000; ++n) {
+        const double t = static_cast<double>(n) / 16000.0;
+        audioScratch[n] = static_cast<int16_t>(lround(8000.0 * sin(kTwoPi * 440.0 * t) +
+                                                     4000.0 * sin(kTwoPi * 1250.0 * t)));
+    }
+    if (!preProcess.DoPreProcess(audioScratch, 0)) {
+        return false;
+    }
+    double sum = 0.0;
+    for (size_t i = 0; i < nIn; ++i) {
+        sum += x[i];
+    }
+    const size_t nCoeffs = in->Shape()[KwsModel::ms_inputColsIdx];
+    PrintFloats("KWS_SELFTEST_B mfcc[0]:", x, nCoeffs);
+    PrintFloats("KWS_SELFTEST_B mfcc[24]:", x + 24 * nCoeffs, nCoeffs);
+    printf("KWS_SELFTEST_B mfcc sum: %.4f\n", sum);
+    if (!RunInference(model, profiler)) {
+        return false;
+    }
+    PrintFloats("KWS_SELFTEST_B logits:", out->GetData<float>(), nOut);
+    return true;
+}
+#endif /* KWS_ET_SELFTEST */
+#endif /* MLEK_FWK_EXECUTORCH */
 
 #ifdef SE_SERVICES_SUPPORT
 static std::string last_label;
@@ -133,8 +213,8 @@ static void send_msg_if_needed(arm::app::kws::KwsResult &result)
         const auto scoreThreshold = ctx.Get<float>("scoreThreshold");
 
         constexpr int minTensorDims = static_cast<int>(
-            (MicroNetKwsModel::ms_inputRowsIdx > MicroNetKwsModel::ms_inputColsIdx)?
-             MicroNetKwsModel::ms_inputRowsIdx : MicroNetKwsModel::ms_inputColsIdx);
+            ((KwsModel::ms_inputRowsIdx > KwsModel::ms_inputColsIdx)?
+             KwsModel::ms_inputRowsIdx : KwsModel::ms_inputColsIdx) + 1);
 
         if (!model.IsInited()) {
             printf_err("Model is not initialised! Terminating processing.\n");
@@ -154,8 +234,8 @@ static void send_msg_if_needed(arm::app::kws::KwsResult &result)
         }
 
         /* Get input shape for feature extraction. */
-        const uint32_t numMfccFeatures = inputShape[arm::app::fwk::tflm::MicroNetKwsModel::ms_inputColsIdx];
-        const uint32_t numMfccFrames   = inputShape[arm::app::fwk::tflm::MicroNetKwsModel::ms_inputRowsIdx];
+        const uint32_t numMfccFeatures = inputShape[KwsModel::ms_inputColsIdx];
+        const uint32_t numMfccFrames   = inputShape[KwsModel::ms_inputRowsIdx];
 
         /* We expect to be sampling 1 second worth of data at a time.
         *  NOTE: This is only used for time stamp calculation. */
@@ -182,6 +262,16 @@ static void send_msg_if_needed(arm::app::kws::KwsResult &result)
             audio_inited = true;
         }
 
+#if defined(MLEK_FWK_EXECUTORCH) && KWS_ET_SELFTEST
+        static bool selfTestDone;
+        if (!selfTestDone) {
+            selfTestDone = true;
+            if (!RunEtSelfTest(model, preProcess, profiler, audio_inf, AUDIO_SAMPLES)) {
+                printf_err("KWS ExecuTorch self-test failed\n");
+            }
+            std::fill(audio_inf, audio_inf + AUDIO_SAMPLES + AUDIO_STRIDE, 0);
+        }
+#endif
         // Start first fill of final stride section of buffer
         hal_get_audio_data(audio_inf + AUDIO_SAMPLES, AUDIO_STRIDE);
 
@@ -225,6 +315,9 @@ static void send_msg_if_needed(arm::app::kws::KwsResult &result)
 #ifndef GPIO_PROFILING
             printf("Inference time = %.3f ms\n", (double) (Get_SysTick_Cycle_Count32() - start) / SystemCoreClock * 1000);
             start = Get_SysTick_Cycle_Count32();
+#endif
+#if defined(MLEK_FWK_EXECUTORCH) && !defined(GPIO_PROFILING)
+            PrintFloats("logits:", outputTensor->GetData<float>(), outputTensor->GetNumElements());
 #endif
             if (!postProcess.DoPostProcess()) {
                 printf_err("Post-processing failed.");
