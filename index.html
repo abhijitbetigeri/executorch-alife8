@@ -141,7 +141,7 @@ footer a { color: var(--soft); }
 <nav class="top"><div class="wrap">
   <a class="brand" href="#top"><span class="led"></span>DCSM-Simplified</a>
   <div class="links">
-    <a href="#how">How it works</a><a href="#slides">Slides</a><a href="#hood">Under the hood</a>
+    <a href="#how">How it works</a><a href="#slides">Slides</a><a href="#hood">Under the hood</a><a href="#next">Roadmap</a>
     <a href="https://github.com/abhijitbetigeri/executorch-alife8">GitHub ↗</a>
     <a href="https://huggingface.co/abhijitbetigeri/dcops-e8">Models ↗</a>
   </div>
@@ -445,6 +445,31 @@ footer a { color: var(--soft); }
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#173828">DCSM-Simplified · 12 · 5 demo classes: 73% right, 6% wrong, rest blank</p>
 
 </section>
+<section class="slide" data-id="vision" style="background:#10161D;color:#E9EEE9;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:4px;text-transform:uppercase;color:#4FD08A">Where this goes</p>
+<h2 style="font-size:72px;font-weight:600;line-height:1.1">From rack parts to the parts on the board.</h2>
+<div style="display:flex;gap:40px;align-items:start">
+<div style="width:520px;display:flex;flex-direction:column;gap:16px;background:#18222C;padding:32px;border-radius:16px;border-top:6px solid #4FD08A">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#4FD08A">today · rack level</p>
+<p style="font-size:32px;line-height:1.4">Power shelf, fan, drive bay, network port, power connector</p>
+<p style="font-size:24px;line-height:1.4;color:#BFD0C8">Which unit to pull or check.</p>
+</div>
+<svg class="xs" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true" style="width:56px;height:28px;fill:#5C6E66;flex:none"><rect x="0" y="15" width="62" height="20"/><polygon points="58,0 100,25 58,50"/></svg>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#18222C;padding:32px;border-radius:16px;border-top:6px solid #F2A541">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#F2A541">next · board level</p>
+<p style="font-size:32px;line-height:1.4">IC, capacitor, electrolytic capacitor, resistor, diode, inductor, transistor, crystal, connector, LED, switch</p>
+<p style="font-size:24px;line-height:1.4;color:#BFD0C8">Which part on the board failed: a swollen capacitor, a burnt chip, a loose connector. Then its specs and fix, offline.</p>
+</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px">
+<div style="display:flex;flex-direction:column;gap:8px;border-left:4px solid #F2A541;padding:4px 0px 4px 24px"><h3 style="font-size:32px;font-weight:600">The data exists</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">672 labelled board photos, 23 part types, CC BY 4.0.</p></div>
+<div style="display:flex;flex-direction:column;gap:8px;border-left:4px solid #F2A541;padding:4px 0px 4px 24px"><h3 style="font-size:32px;font-weight:600">The hard part</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">A resistor is ~1.3% of a photo: about 2 px at our 160 px input.</p></div>
+<div style="display:flex;flex-direction:column;gap:8px;border-left:4px solid #F2A541;padding:4px 0px 4px 24px"><h3 style="font-size:32px;font-weight:600">The path</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">A detector on high-resolution tiles, same ExecuTorch → Ethos-U85 flow.</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#7D8F87">DCSM-Simplified · 13</p>
+
+</section>
 <section class="slide" data-id="board" style="background:#EEF1EC;color:#14202A;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
 <p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;letter-spacing:4px;text-transform:uppercase;color:#1E7A4C">Why the Arm board</p>
 <h2 style="font-size:72px;font-weight:600;line-height:1.1">Everything on one low-power chip.</h2>
@@ -464,7 +489,7 @@ footer a { color: var(--soft); }
 </ul>
 </div>
 </div>
-<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#6B7A7F">DCSM-Simplified · 13</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#6B7A7F">DCSM-Simplified · 14</p>
 
 </section>
 <section class="slide" data-id="next" style="background:#10161D;color:#E9EEE9;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
@@ -472,7 +497,7 @@ footer a { color: var(--soft); }
 <div style="display:flex;gap:32px">
 <div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#18222C;padding:36px;border-radius:16px"><h3 style="font-size:32px;font-weight:600">Always-on voice</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">Move keyword spotting to the low-power core and its Ethos-U55.</p></div>
 <div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#18222C;padding:36px;border-radius:16px"><h3 style="font-size:32px;font-weight:600">All 16 parts</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">More board-camera captures for the classes the demo hides today.</p></div>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#18222C;padding:36px;border-radius:16px"><h3 style="font-size:32px;font-weight:600">Board-level parts</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">Chips, connectors and capacitors need a detector at higher resolution.</p></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#18222C;padding:36px;border-radius:16px"><h3 style="font-size:32px;font-weight:600">Board-level parts</h3><p style="font-size:24px;line-height:1.4;color:#BFD0C8">ICs, capacitors, resistors, diodes: a tiled detector, trained on 672 board photos.</p></div>
 </div>
 <div style="flex:1"></div>
 <h2 style="font-size:96px;font-weight:700;line-height:1.05">Thank you.</h2>
@@ -486,7 +511,7 @@ footer a { color: var(--soft); }
     <div class="controls">
       <button id="prev" aria-label="Previous slide">← Previous</button>
       <button id="next" aria-label="Next slide">Next →</button>
-      <span class="count" id="count">1 / 14</span>
+      <span class="count" id="count">1 / 15</span>
       <span class="spacer"></span>
       <button id="fs">Full screen</button>
     </div>
@@ -533,6 +558,17 @@ footer a { color: var(--soft); }
       <p class="big">35% → 73%</p>
       <p class="lead" style="font-size:16px">A phone shows a clock-synced slideshow; the laptop reads each camera frame off the board and labels it from the clock. 1,330 board frames plus 1,503 replay photos, test slides never trained on. One loop: about 15 minutes.</p>
     </div>
+  </div>
+</div></section>
+
+<section class="block" id="next"><div class="wrap">
+  <p class="eyebrow">Where this goes</p>
+  <h2>From rack parts to the parts on the board</h2>
+  <p class="lead">Today DCSM-Simplified tells a technician which unit to pull or check. The real servicing win is one level down: which part on the board failed, like a swollen capacitor, a burnt chip or a loose connector, with its specs and the fix, still offline.</p>
+  <div class="steps">
+    <div class="card"><p class="k">today · rack level</p><h3>5 demo parts, live on the E8</h3><p>Power shelf, fan, drive bay, network port and power connector, with checklists and knowledge pages.</p></div>
+    <div class="card amber"><p class="k">next · board level</p><h3>The parts on the board</h3><p>IC, capacitor, electrolytic capacitor, resistor, diode, inductor, transistor, crystal, connector, LED and switch.</p></div>
+    <div class="card blue"><p class="k">the path</p><h3>Tiled detection on the NPU</h3><p>A resistor is about 2 pixels at our 160-pixel input. A small detector on high-resolution tiles, trained on <a href="https://universe.roboflow.com/carddata-3mujr/components-xvceq">672 labelled board photos</a> (CC BY 4.0), using the same ExecuTorch → Ethos-U85 flow.</p></div>
   </div>
 </div></section>
 
