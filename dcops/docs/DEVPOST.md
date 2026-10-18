@@ -277,4 +277,4 @@ Transformers (AST) · LVGL · GCC 14.3.1 · SEGGER J-Link · Google Colab
 
 ## Team
 
-`TODO(names)`. Camera pipeline: Nissan Pow.
+Abhijit Betigeri and Nissan Pow. Camera pipeline: Nissan Pow.
