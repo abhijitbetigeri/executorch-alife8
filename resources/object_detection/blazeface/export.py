@@ -37,9 +37,36 @@ from executorch.exir import (  # noqa: E402
     ExecutorchBackendConfig,
     to_edge_transform_and_lower,
 )
+from executorch.exir.dialects._ops import ops as exir_ops  # noqa: E402
+from torch.fx.passes.operator_support import OperatorSupportBase  # noqa: E402
 from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e  # noqa: E402
 
 SIZE = 128
+
+
+class KeepTailOnCpu(OperatorSupportBase):
+    """Keep BlazeFace's head tail (reshape / cat / squeeze) off the Ethos-U.
+
+    With ExecuTorch 1.1.0 every `conv -> permute(0, 2, 3, 1) -> reshape` head lowers to
+    CONV2D -> TRANSPOSE -> TRANSPOSE (the pair cancels) -> RESHAPE. Vela 4.5 (and 5.1) removes
+    the transpose pair and then gives the conv the reshaped OFM shape (e.g. 1x1x1x512 instead of
+    1x16x16x2), so the NPU computes the heads from the first pixels only and the scores come out
+    scrambled. TOSA is correct (the TOSA reference model matches the int8 simulation bit for bit);
+    only the Vela-compiled command stream is wrong. Running the cheap tail on the Cortex-M
+    (portable view/cat/squeeze, ~15k int8 elements) avoids the pattern; outputs are unchanged.
+    See experiments/fvp/FINDINGS.md.
+    """
+
+    _TAIL = {
+        exir_ops.edge.aten.view_copy.default,
+        exir_ops.edge.aten.cat.default,
+        exir_ops.edge.aten.squeeze_copy.dims,
+        exir_ops.edge.aten.squeeze_copy.dim,
+        exir_ops.edge.aten.unsqueeze_copy.default,
+    }
+
+    def is_node_supported(self, submodules, node) -> bool:
+        return node.target not in self._TAIL
 
 
 class FaceNHWC(nn.Module):
@@ -112,7 +139,7 @@ def main():
 
     edge = to_edge_transform_and_lower(
         torch.export.export(quantized, example),
-        partitioner=[EthosUPartitioner(spec)],
+        partitioner=[EthosUPartitioner(spec, additional_checks=[KeepTailOnCpu()])],
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
     )
     edge = edge.transform([ReplaceQuantNodesPass(), QuantizedOpFusionPass()])

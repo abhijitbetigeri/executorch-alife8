@@ -104,3 +104,6 @@ BlazeFace avg over 30 frames: pre X ms, NPU inference X ms, post X ms, frame-to-
 | Bulk SRAM `.bss.sram` | 6.4 MB | camera frame buffers, full-screen preview, LVGL, 1 MB ExecuTorch arena |
 | `.bss.unstriped` | 750 KB | display framebuffer |
 | DTCM | ~300 KB | `.bss`, heap 92 KB, stack 32 KB |
+
+## Update: scrambled outputs fixed (not yet re-run on the board)
+The board's scrambled BlazeFace outputs were a Vela miscompile of cancelling transposes before a reshape; see [blazeface-vela-bug.md](blazeface-vela-bug.md). The committed `.pte` is now the patched export (head tail on the CPU), bit-exact on a Corstone-320 FVP. Re-flash and re-check on the board.

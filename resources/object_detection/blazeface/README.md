@@ -18,7 +18,7 @@ Model contract:
 
 | | |
 |---|---|
-| NPU operators | 97 / 97 (100%); only `cortex_m::quantize/dequantize_per_tensor` at the boundary run on the CPU |
+| NPU operators | All convolutions on the NPU (2 delegate calls); the head tail (`aten::cat`, `aten::squeeze_copy`, int8 view, `cortex_m::quantize/dequantize_per_tensor`) runs on the CPU. Keeping the tail on the NPU hits a Vela Conv2D->Reshape miscompile that scrambles the outputs on the device (experiments/fvp/FINDINGS.md) |
 | `.pte` size | 189 KB |
 | Vela SRAM / MRAM | 387 KB / 173 KB |
 | MACs per frame | 31.7 M |
