@@ -32,7 +32,8 @@ Board-camera data: `dcops/board_capture/` (`capture.py` in clock mode records th
 model-input frames while a phone shows a clock-synced slideshow; `build_ft_data.py` and
 `build_deck2.py` turn captures into a labelled, slide-split dataset).
 
-Dataset: [abhijitbetigeri/dc-ops-dataset](https://huggingface.co/datasets/abhijitbetigeri/dc-ops-dataset) (public).
+Dataset: [`dcops/data/`](../data/README.md) in this repo (component photos and board-camera captures).
+Trained models (deployed, ablations, teachers): [abhijitbetigeri/dcops-e8](https://huggingface.co/abhijitbetigeri/dcops-e8) on Hugging Face.
 
 ### 2. Export to ExecuTorch for the Ethos-U85-256
 

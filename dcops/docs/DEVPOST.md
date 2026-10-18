@@ -259,7 +259,8 @@ These are the 5 classes the board camera separates reliably, measured on held-ou
 
 ## Datasets and licenses
 
-- DC-Ops dataset (ours, public): https://huggingface.co/datasets/abhijitbetigeri/dc-ops-dataset
+- Trained models (deployed .pte + PyTorch weights, ablations, teachers): https://huggingface.co/abhijitbetigeri/dcops-e8
+- Dataset: dcops/data/ in the GitHub repo (CC BY 4.0 sources listed there)
 - Speech Commands v0.02 (KWS training).
 - Roboflow "Components" (CC BY 4.0): evaluated for future work only, not used in the model.
 
